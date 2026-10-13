@@ -60,6 +60,12 @@ class SettingsActivity : BaseActivity() {
             android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                 .apply { topMargin = dp(8) }
         )
+        c2.divider()
+        c2.switchRow(
+            "Günlük rapor",
+            "Her gün saat ${s.reportHour}:00'dan sonra 'çalışıyorum' raporu gönderir. Rapor gelmezse robot durmuş demektir.",
+            s.dailyReport
+        ) { s.dailyReport = it }
         c2.fullWidth(outlinedButton("🔔 Alarm sesini dene") {
             Notifier.alert(this, 9, "Test bildirimi", "Uygun araç çıkınca böyle haber vereceğim.", Api.SITE)
         }, top = 14)

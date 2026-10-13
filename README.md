@@ -41,3 +41,10 @@ Uygulamadaki "Telegram" bölümünde @BotFather'dan alınan bot token'ı ve sohb
 ("Sohbetleri bul" butonu numaraları otomatik bulur). Alarmlar telefonda bildirim olarak çıkar, ayrıca
 Telegram'a mesaj olarak gider. Her robota ayrı sohbet atanabilir; örneğin arkadaşının robotu sadece
 ona yazar.
+
+## Sessizce bozulmaya karşı korumalar
+
+- **Günlük rapor:** Her gün 10:00'dan sonra "çalışıyorum" bildirimi gelir, Telegram kuruluysa oraya da gider. Rapor gelmediyse robot durmuş demektir.
+- **Siteye ulaşamama:** 3 kontrol üst üste başarısız olursa haber verir; bağlantı düzelince de haber verir.
+- **Versiyon bulunamıyor:** Robotun versiyonu 3 kontrol üst üste sitede yoksa (adı değişmiş ya da satıştan kalkmış olabilir) haber verir.
+- **Ayarlar siteyle uyuşmuyor:** Robotun şart koştuğu bir seçenek sitede artık yoksa haber verir. Böylece robot hiç eşleşmeyen bir aramayla sessizce beklemez.

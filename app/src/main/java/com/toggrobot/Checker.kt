@@ -52,9 +52,28 @@ object Checker {
                 if (error == null) {
                     lines += "${r.name}: '${r.product}' sitede bulunamadı"
                     RobotStatus.save(p, r.id, RobotStatus("missing", 0, 0, 0, 0, now))
+                    // Site versiyonun adini degistirdiyse robot sessizce kor kalmasin
+                    val streak = p.getInt("miss_${r.id}", 0) + 1
+                    p.edit().putInt("miss_${r.id}", streak).apply()
+                    if (streak >= 3) Problems.raise(
+                        ctx, "miss_${r.id}", "⚠️ ${r.name}: versiyon sitede bulunamıyor",
+                        "'${r.product}' adlı versiyon sitede artık yok (satıştan kalkmış ya da adı değişmiş olabilir). Robotu açıp versiyonu yeniden seç."
+                    )
                 }
                 continue
             }
+            p.edit().putInt("miss_${r.id}", 0).apply()
+            Problems.clear(ctx, "miss_${r.id}")
+            // Robotun istedigi bir secenek basligi sitede yoksa (site degistiyse) eslesme hic olmaz -> haber ver
+            val titles = prod.options.map { Robot.norm(it.title) }.toSet()
+            val unknown = r.want.filter { it.value.isNotEmpty() && Robot.norm(it.key) !in titles }.keys
+            if (unknown.isNotEmpty()) {
+                lines += "⚠ ${r.name}: sitede olmayan seçenek: ${unknown.joinToString()}"
+                Problems.raise(
+                    ctx, "opt_${r.id}", "⚠️ ${r.name}: ayarların siteyle uyuşmuyor",
+                    "Sitede artık olmayan seçenek(ler): ${unknown.joinToString()}. Site değişmiş olabilir; robotu açıp seçenekleri yeniden işaretle."
+                )
+            } else Problems.clear(ctx, "opt_${r.id}")
             val full = r.fullHits(prod)
             val any = r.anyHits(prod)
             val cheap = prod.variants.firstOrNull()
@@ -86,11 +105,16 @@ object Checker {
 
         // Ust uste hata: bir kez haber ver
         val fails = if (error == null) 0 else p.getInt("fails", 0) + 1
-        p.edit().putInt("fails", fails).apply()
-        if (fails == 10) {
-            Notifier.alert(ctx, Notifier.ID_PROBLEM, "Togg Robot siteye ulaşamıyor", "10 denemedir hata: $error", Api.SITE)
-            Telegram.send(ctx, "⚠️ Togg Robot siteye ulaşamıyor: $error")
+        p.edit().putInt("fails", fails)
+            .putInt("statChecks", p.getInt("statChecks", 0) + 1)
+            .putInt("statFails", p.getInt("statFails", 0) + (if (error == null) 0 else 1)).apply()
+        if (fails >= 3) {
+            Problems.raise(ctx, "net", "⚠️ Togg Robot siteye ulaşamıyor", "$fails denemedir hata: $error\nİnternet bağlantını kontrol et. Düzelince haber vereceğim.")
+        } else if (error == null && Problems.clear(ctx, "net")) {
+            Notifier.info(ctx, Notifier.ID_PROBLEM, "Togg Robot tekrar bağlandı", "Siteye yeniden ulaşılıyor, takip sürüyor.")
+            Telegram.send(ctx, "✅ Togg Robot siteye tekrar ulaşıyor, takip sürüyor.")
         }
+        Heartbeat.maybeSend(ctx, s, products, now)
         return out
     }
 
@@ -293,4 +317,60 @@ object Night {
     fun describe(s: Settings): String =
         if (!s.nightMode) "Gece modu kapalı"
         else "%02d:00–%02d:00 arası %d saatte bir".format(s.nightStart, s.nightEnd, s.nightIntervalH)
+}
+
+/** Sorun bildirimleri: ayni sorun icin bir kez haber verir, sorun gecince sifirlanir. */
+object Problems {
+    fun raise(ctx: Context, key: String, title: String, text: String) {
+        val p = Settings(ctx).prefs
+        if (p.getBoolean("prob_$key", false)) return
+        p.edit().putBoolean("prob_$key", true).apply()
+        Notifier.alert(ctx, Notifier.idFor("prob", key), title, text, Api.SITE)
+        Telegram.send(ctx, "$title\n$text")
+        Log.add(ctx, "SORUN: $title")
+    }
+
+    /** true: daha once bildirilmis bir sorun gecti */
+    fun clear(ctx: Context, key: String): Boolean {
+        val p = Settings(ctx).prefs
+        if (!p.getBoolean("prob_$key", false)) return false
+        p.edit().putBoolean("prob_$key", false).apply()
+        return true
+    }
+}
+
+/**
+ * Gunluk "hayattayim" raporu (varsayilan her gun 10:00'dan sonraki ilk kontrolde).
+ * Rapor gelmediyse robot calismiyor demektir: telefon kapali, uygulama kapatilmis vb.
+ */
+object Heartbeat {
+    fun maybeSend(ctx: Context, s: Settings, products: List<Product>, now: Long) {
+        val p = s.prefs
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val day = cal.get(java.util.Calendar.YEAR) * 1000 + cal.get(java.util.Calendar.DAY_OF_YEAR)
+        if (cal.get(java.util.Calendar.HOUR_OF_DAY) < s.reportHour || p.getInt("hbDay", 0) == day) return
+        val checks = p.getInt("statChecks", 0)
+        val fails = p.getInt("statFails", 0)
+        p.edit().putInt("hbDay", day).putInt("statChecks", 0).putInt("statFails", 0).apply()
+        if (!s.dailyReport) return
+
+        val sb = StringBuilder("🟢 Togg Robot günlük rapor\n")
+        sb.append("Son raporadan beri $checks kontrol").append(if (fails > 0) ", $fails hatalı" else ", hepsi başarılı").append(".\n")
+        for (r in s.robots.filter { it.enabled }) {
+            val st = RobotStatus.load(p, r.id)
+            sb.append("\n• ${r.name}: ").append(
+                when (st?.state) {
+                    "match" -> "${st.count} uygun araç var! En ucuz ${Fmt.price(st.best)}"
+                    "none" -> "uygun araç yok" + (if (st.cheapest > 0) " (versiyonun en ucuzu ${Fmt.price(st.cheapest)}, ÖTV %${st.cheapestSct})" else "")
+                    "missing" -> "versiyon sitede bulunamıyor!"
+                    else -> "henüz sonuç yok"
+                }
+            )
+        }
+        if (products.isEmpty()) sb.append("\n\n⚠ Bu kontrolde siteden veri alınamadı.")
+        sb.append("\n\nBu raporu her gün alacaksın. Gelmezse robot çalışmıyor demektir (telefon kapalı / uygulama durdurulmuş).")
+        Notifier.info(ctx, Notifier.idFor("hb", "day"), "Togg Robot çalışıyor ✓", sb.toString().lineSequence().drop(1).joinToString(" ").take(200))
+        Telegram.send(ctx, sb.toString())
+        Log.add(ctx, "Günlük rapor gönderildi")
+    }
 }

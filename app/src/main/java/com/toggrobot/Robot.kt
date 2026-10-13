@@ -130,6 +130,15 @@ class Settings(ctx: Context) {
         get() = prefs.getInt("nightIntervalH", 3)
         set(v) = prefs.edit().putInt("nightIntervalH", v.coerceIn(1, 12)).apply()
 
+    /** Gunluk "calisiyorum" raporu */
+    var dailyReport: Boolean
+        get() = prefs.getBoolean("dailyReport", true)
+        set(v) = prefs.edit().putBoolean("dailyReport", v).apply()
+
+    var reportHour: Int
+        get() = prefs.getInt("reportHour", 10)
+        set(v) = prefs.edit().putInt("reportHour", v.coerceIn(0, 23)).apply()
+
     /** Kesin zamanlama: telefon derin uykudayken de tam zamaninda kontrol eder. */
     var exactMode: Boolean
         get() = prefs.getBoolean("exactMode", true)
