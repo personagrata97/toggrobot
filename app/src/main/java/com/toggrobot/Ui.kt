@@ -221,7 +221,7 @@ open class BaseActivity : AppCompatActivity() {
         setTextColor(fg)
         chipStrokeWidth = 0f
         chipMinHeight = dpf(28)
-        ensureMinTouchTargetSize = false
+        setEnsureMinTouchTargetSize(false)
     }
 
     /** Tek secimli bolumlu dugme grubu. Secilen indeksi bildirir. */
