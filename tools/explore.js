@@ -41,22 +41,21 @@ const cases = [
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
   console.log(JSON.stringify(results, null, 1));
 
-  // Uygulama paketini indir ve mobil algilama kodunu bul
-  const ctx = await browser.newContext({ userAgent: DESK });
-  const page = await ctx.newPage();
-  await page.goto(URL, { waitUntil: 'domcontentloaded' });
-  const srcs = await page.evaluate(() => [...document.querySelectorAll('script[src]')].map(s => s.src).filter(s => s.includes('configurator.togg.com.tr')));
-  const out = [];
-  for (const s of srcs) {
-    const js = await (await ctx.request.get(s)).text();
-    fs.writeFileSync(path.join(OUT, 'bundle-' + path.basename(s)), js);
-    const re = /(uygulamamızdan|innerWidth|matchMedia|maxTouchPoints|ontouchstart|userAgentData|navigator\.userAgent|isMobile|android|iphone|screen\.width|pointer:\s*coarse|hover:\s*none|max-width)/gi;
-    let m;
-    while ((m = re.exec(js)) !== null) {
-      out.push(`${path.basename(s)} @${m.index} [${m[0]}]: ` + js.slice(Math.max(0, m.index - 220), m.index + 220).replace(/\n/g, ' '));
-      if (out.length > 300) break;
-    }
+  // Uygulamadaki duzeltme: telefon boyutunda (412 px, mobil) ama viewport 1100'e sabitlenmis
+  const fixJs = fs.readFileSync(path.join(__dirname, 'viewport-fix.js'), 'utf8');
+  for (const variant of ['fix-yok', 'fix-var']) {
+    const ctx = await browser.newContext({ locale: 'tr-TR', userAgent: DESK, viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.6 });
+    if (variant === 'fix-var') await ctx.addInitScript(fixJs);
+    const page = await ctx.newPage();
+    await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(10000);
+    const info = await page.evaluate(() => ({ text: document.body.innerText.slice(0, 300), w: window.innerWidth }));
+    const blocked = /uygulamamızdan|dijital mağazalardan/i.test(info.text);
+    await page.screenshot({ path: path.join(OUT, 'telefon-' + variant + '.png') });
+    results.push({ name: 'telefon-412-' + variant, blocked, innerWidth: info.w, text: info.text.slice(0, 120) });
+    await ctx.close();
   }
-  fs.writeFileSync(path.join(OUT, 'detection-snippets.txt'), out.join('\n\n'));
+  fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
+  console.log(JSON.stringify(results.slice(-2), null, 1));
   await browser.close();
 })();
