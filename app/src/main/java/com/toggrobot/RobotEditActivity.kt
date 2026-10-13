@@ -62,8 +62,15 @@ class RobotEditActivity : UiActivity() {
             robot.anyMaxPrice
         )
 
+        root.header("Telegram")
+        root.text("Bu robotun mesajları hangi Telegram sohbetlerine gitsin? Boş bırakırsan ana ekrandaki Telegram ayarındaki herkese gider. " +
+            "Arkadaşının robotu için onun sohbet numarasını yaz.", 12f)
+        val tg = EditText(this).apply { setText(robot.tgChats); setSingleLine(); hint = "ör. 123456789" }
+        root.addView(tg)
+
         root.row(
             button("💾 Kaydet") {
+                robot.tgChats = tg.text.toString().trim()
                 robot.name = name.text.toString().trim().ifEmpty { "Robot" }
                 robot.maxPrice = maxPrice.text.toString().toLongOrNull() ?: 0
                 robot.anyMaxPrice = anyPrice.text.toString().toLongOrNull() ?: 0

@@ -34,3 +34,10 @@ Birden fazla robot tanımlanabilir (ör. biri sana, biri arkadaşına). Her robo
 1. Bu deponun **Releases** bölümünden en yeni `ToggRobot.apk` dosyasını telefona indirip kur.
 2. Uygulamayı aç. İzin pencereleri sırayla kendiliğinden gelir (bildirim, pil); hepsine "İzin ver" de.
 3. Robot kendiliğinden çalışmaya başlar. "Sitede şu an seçilebilenler" bölümünde gerçek veriyi görebilirsin.
+
+## Telegram (iPhone'a bildirim)
+
+Uygulamadaki "Telegram" bölümünde @BotFather'dan alınan bot token'ı ve sohbet numaraları girilir
+("Sohbetleri bul" butonu numaraları otomatik bulur). Alarmlar telefonda bildirim olarak çıkar, ayrıca
+Telegram'a mesaj olarak gider. Her robota ayrı sohbet atanabilir; örneğin arkadaşının robotu sadece
+ona yazar.

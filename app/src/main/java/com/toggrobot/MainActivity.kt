@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -99,6 +100,45 @@ class MainActivity : UiActivity() {
         root.row(
             button("Bildirim testi") { Notifier.alert(this, 9, "Test bildirimi 🔔", "Bildirimler çalışıyor.", Api.SITE) },
             button("Siteyi aç") { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Api.SITE))) },
+        )
+
+        root.header("Telegram (iPhone'a bildirim)")
+        root.text(
+            "1) Telegram'da @BotFather'a yaz → /newbot → bota bir ad ver → verdiği uzun şifreyi (token) aşağıya yapıştır.\n" +
+                "2) Telegram'da yeni botunu aç, Başlat'a bas ve 'merhaba' yaz. Arkadaşın da yazabilir ya da botu bir gruba ekleyebilirsin.\n" +
+                "3) 'Sohbetleri bul'a bas, sonra 'Test mesajı gönder'.", 12f
+        )
+        root.text("Bot token", 13f)
+        val tgToken = EditText(this).apply { setText(s.tgToken); setSingleLine(); hint = "123456:ABC-..." }
+        root.addView(tgToken)
+        root.text("Sohbet numaraları (virgülle)", 13f)
+        val tgChats = EditText(this).apply { setText(s.tgChats); setSingleLine() }
+        root.addView(tgChats)
+        root.row(
+            button("Sohbetleri bul") {
+                s.tgToken = tgToken.text.toString()
+                Thread {
+                    val r = runCatching { Telegram.findChats(s.tgToken) }
+                    ui.post {
+                        r.onSuccess { found ->
+                            if (found.isEmpty()) toast("Kimse bota yazmamış. Telegram'da bota 'merhaba' yaz, tekrar dene.")
+                            else {
+                                val merged = (Telegram.parseChats(tgChats.text.toString()) + found.keys).distinct()
+                                tgChats.setText(merged.joinToString(", "))
+                                s.tgChats = tgChats.text.toString()
+                                toast("Bulundu: " + found.values.joinToString(", "))
+                            }
+                        }.onFailure { toast("Hata: ${it.message} (token doğru mu?)") }
+                    }
+                }.start()
+            },
+            button("Test mesajı gönder") {
+                s.tgToken = tgToken.text.toString(); s.tgChats = tgChats.text.toString()
+                Thread {
+                    val n = Telegram.send(applicationContext, "✅ Togg Robot bağlandı! Uygun araç çıkınca buraya yazacağım.")
+                    ui.post { toast(if (n > 0) "$n sohbete gönderildi 👍" else "Gönderilemedi, kayda bak") }
+                }.start()
+            },
         )
 
         root.header("Kayıt")

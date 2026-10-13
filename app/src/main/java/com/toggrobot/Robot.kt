@@ -23,6 +23,8 @@ data class Robot(
     var maxPrice: Long,
     /** Secenekler tutmasa bile bu versiyonda herhangi bir konfigurasyon bu fiyatin altindaysa haber ver (0 = kapali). */
     var anyMaxPrice: Long,
+    /** Bu robotun Telegram bildirimleri nereye gitsin (bos = genel ayardaki sohbetler). */
+    var tgChats: String = "",
 ) {
     fun matchesProduct(p: Product) = p.collection == collection && norm(p.name) == norm(product)
 
@@ -53,7 +55,7 @@ data class Robot(
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("name", name).put("enabled", enabled)
         .put("collection", collection).put("product", product)
-        .put("maxPrice", maxPrice).put("anyMaxPrice", anyMaxPrice)
+        .put("maxPrice", maxPrice).put("anyMaxPrice", anyMaxPrice).put("tgChats", tgChats)
         .put("want", JSONObject().apply { want.forEach { (k, v) -> put(k, JSONArray(v.toList())) } })
 
     companion object {
@@ -73,6 +75,7 @@ data class Robot(
                 id = o.optString("id"), name = o.optString("name"), enabled = o.optBoolean("enabled", true),
                 collection = o.optString("collection"), product = o.optString("product"), want = want,
                 maxPrice = o.optLong("maxPrice"), anyMaxPrice = o.optLong("anyMaxPrice"),
+                tgChats = o.optString("tgChats"),
             )
         }
 
@@ -118,6 +121,15 @@ class Settings(ctx: Context) {
     var repeatMin: Int
         get() = prefs.getInt("repeatMin", 15)
         set(v) = prefs.edit().putInt("repeatMin", v.coerceAtLeast(0)).apply()
+
+    var tgToken: String
+        get() = prefs.getString("tgToken", "") ?: ""
+        set(v) = prefs.edit().putString("tgToken", v.trim()).apply()
+
+    /** Virgulle ayrilmis Telegram sohbet numaralari */
+    var tgChats: String
+        get() = prefs.getString("tgChats", "") ?: ""
+        set(v) = prefs.edit().putString("tgChats", v.trim()).apply()
 
     var robots: List<Robot>
         get() {

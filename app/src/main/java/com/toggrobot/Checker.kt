@@ -78,6 +78,7 @@ object Checker {
         p.edit().putInt("fails", fails).apply()
         if (fails == 10) {
             Notifier.alert(ctx, Notifier.ID_PROBLEM, "Togg Robot siteye ulaşamıyor", "10 denemedir hata: $error", Api.SITE)
+            Telegram.send(ctx, "⚠️ Togg Robot siteye ulaşamıyor: $error")
         }
         return out
     }
@@ -108,6 +109,7 @@ object Checker {
                 p.edit().putString(keyK, "").putLong(keyT, 0).apply()
                 if (kind == "full") {
                     Notifier.info(ctx, id, "${r.name}: uygun konfigürasyon artık yok", "${prod.name} için az önce bulunan seçenek siteden kalktı.")
+                    Telegram.send(ctx, "ℹ️ ${r.name}: ${prod.name} için bulunan uygun konfigürasyon siteden kalktı.", Telegram.parseChats(r.tgChats))
                 }
             }
             return
@@ -118,6 +120,7 @@ object Checker {
         if (key != lastKey || (repeat > 0 && now - lastT >= repeat * 60_000L)) {
             val (title, body) = text(hits)
             Notifier.alert(ctx, id, title, body, Api.SITE)
+            Telegram.send(ctx, "$title\n\n$body\n\n${Api.SITE}", Telegram.parseChats(r.tgChats))
             p.edit().putString(keyK, key).putLong(keyT, now).apply()
             Log.add(ctx, "BİLDİRİM: $title")
         }
