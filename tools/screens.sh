@@ -37,6 +37,7 @@ shot 12-yeni-robot 6
 
 adb shell am start -W -n $P/.WebActivity
 shot 13-site-bilgisayar-gorunumu 25
+sleep 5; adb logcat -d -s ToggWeb:I > shots/web-olcum.txt
 adb shell dumpsys activity activities | grep -i "mResumedActivity\|topResumedActivity" > shots/web-aktif-ekran.txt
 
 adb logcat -d -s AndroidRuntime:E > shots/crash-log.txt

@@ -12,14 +12,14 @@ import android.webkit.WebViewClient
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
-import androidx.webkit.WebViewCompat
-import androidx.webkit.WebViewFeature
 
 /**
  * Konfiguratoru uygulamanin icinde, BILGISAYAR gorunumunde acar.
  * Site mobil engel ekranini sadece EKRAN GENISLIGINE gore gosteriyor (test: 800 px engelli,
  * 1024 px ve ustu acik; tarayici kimligi ve dokunmatik ekran fark etmiyor). Bu yuzden sayfa
- * daha yuklenirken genisligi [DESKTOP_WIDTH] px'e sabitliyoruz; kullanici parmakla yakinlastirabilir.
+ * WebView'in kendisini [DESKTOP_WIDTH] dp genisliginde kurup ekrana sigacak sekilde kucultuyoruz: sayfa
+ * gercekten masaustu genisliginde bir pencere olcer (meta etiketiyle "genis taklidi" yapmak gercek sitede
+ * ise yaramadi). Dokunma ve parmakla yakinlastirma olcekli gorunumde de calisir.
  * Telefon tarayicisindaki "mobil uygulamaya yonlendirme" burada olmaz: sitenin baska
  * uygulamaya gecirme denemeleri (intent://, market:// vb.) engellenir, sayfa burada kalir.
  */
@@ -43,14 +43,34 @@ class WebActivity : BaseActivity() {
         }
         root.addView(progress, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(4)))
 
+        // Kapsayici ekranin kalanini doldurur; WebView icinde masaustu genisliginde durup olceklenir
+        val holder = android.widget.FrameLayout(this).apply { clipChildren = true }
+        root.addView(holder, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         web = WebView(this)
-        root.addView(web, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        val desktopPx = dp(DESKTOP_WIDTH)
+        holder.addView(web, android.widget.FrameLayout.LayoutParams(desktopPx, android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+        holder.addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
+            val w = r - l
+            val h = b - t
+            if (w <= 0 || h <= 0) return@addOnLayoutChangeListener
+            val scale = w.toFloat() / desktopPx
+            web.pivotX = 0f
+            web.pivotY = 0f
+            web.scaleX = scale
+            web.scaleY = scale
+            val needH = (h / scale).toInt()
+            val lp = web.layoutParams
+            if (lp.height != needH) {
+                lp.height = needH
+                v.post { web.layoutParams = lp }
+            }
+        }
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             userAgentString = Api.DESKTOP_UA
             useWideViewPort = true
-            loadWithOverviewMode = true
+            loadWithOverviewMode = false
             builtInZoomControls = true
             displayZoomControls = false
             setSupportZoom(true)
@@ -68,12 +88,11 @@ class WebActivity : BaseActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 progress.visibility = View.GONE
-                // Yedek: eski WebView surumlerinde de genisligi sabitle ve sayfaya yeniden olcmesini soyle
-                view?.evaluateJavascript("$VIEWPORT_JS;window.dispatchEvent(new Event('resize'));", null)
+                // Kayit icin: sayfanin olctugu genislik ve engel ekrani var mi
+                view?.evaluateJavascript(
+                    "(function(){return window.innerWidth+'|'+/uygulamamızdan|dijital mağazalardan/i.test(document.body.innerText)})()"
+                ) { r -> android.util.Log.i("ToggWeb", "genislik|engel=$r") }
             }
-        }
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(web, VIEWPORT_JS, setOf("https://configurator.togg.com.tr"))
         }
         web.loadUrl(intent.getStringExtra("url") ?: Api.SITE)
 
@@ -91,25 +110,6 @@ class WebActivity : BaseActivity() {
 
     companion object {
         private const val DESKTOP_WIDTH = 1100
-
-        /** Sayfanin viewport genisligini masaustu genisligine sabitler (meta etiketi eklenir eklenmez). */
-        private val VIEWPORT_JS = """
-            (function(){
-              var W = $DESKTOP_WIDTH, want = 'width=' + W;
-              function fix(){
-                var m = document.querySelector('meta[name="viewport"]');
-                if (m) { if (m.getAttribute('content') !== want) m.setAttribute('content', want); }
-                else if (document.head) { m = document.createElement('meta'); m.name = 'viewport'; m.content = want; document.head.appendChild(m); }
-              }
-              fix();
-              if (!window.__toggVp) {
-                window.__toggVp = true;
-                var mo = new MutationObserver(fix);
-                mo.observe(document, { childList: true, subtree: true });
-                setTimeout(function(){ mo.disconnect(); }, 15000);
-              }
-            })()
-        """.trimIndent()
 
         fun intent(ctx: android.content.Context, url: String = Api.SITE) =
             Intent(ctx, WebActivity::class.java).putExtra("url", url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

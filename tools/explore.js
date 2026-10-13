@@ -41,21 +41,5 @@ const cases = [
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
   console.log(JSON.stringify(results, null, 1));
 
-  // Uygulamadaki duzeltme: telefon boyutunda (412 px, mobil) ama viewport 1100'e sabitlenmis
-  const fixJs = fs.readFileSync(path.join(__dirname, 'viewport-fix.js'), 'utf8');
-  for (const variant of ['fix-yok', 'fix-var']) {
-    const ctx = await browser.newContext({ locale: 'tr-TR', userAgent: DESK, viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.6 });
-    if (variant === 'fix-var') await ctx.addInitScript(fixJs);
-    const page = await ctx.newPage();
-    await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(10000);
-    const info = await page.evaluate(() => ({ text: document.body.innerText.slice(0, 300), w: window.innerWidth }));
-    const blocked = /uygulamamızdan|dijital mağazalardan/i.test(info.text);
-    await page.screenshot({ path: path.join(OUT, 'telefon-' + variant + '.png') });
-    results.push({ name: 'telefon-412-' + variant, blocked, innerWidth: info.w, text: info.text.slice(0, 120) });
-    await ctx.close();
-  }
-  fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 1));
-  console.log(JSON.stringify(results.slice(-2), null, 1));
   await browser.close();
 })();
