@@ -53,17 +53,55 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         cfg = Config(this)
         Notifier.createChannels(this)
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-        }
         setContentView(buildUi())
     }
 
     override fun onResume() {
         super.onResume()
         ui.post(refresher)
+        // Izin pencerelerini sirayla otomatik ac (once bildirim, sonra pil)
+        ui.postDelayed({ setupFlow() }, 600)
+    }
+
+    private fun needsNotifPermission() = Build.VERSION.SDK_INT >= 33 &&
+        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+    private fun needsBattery() = !getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    private var setupBusy = false
+
+    /** Eksik izin varsa ilgili sistem penceresini acar. Her pencere en fazla 2 kez sorulur. */
+    private fun setupFlow() {
+        if (setupBusy || isFinishing) return
+        val p = cfg.prefs
+        val askedNotif = p.getInt("askedNotif", 0)
+        val askedBattery = p.getInt("askedBattery", 0)
+        when {
+            needsNotifPermission() && askedNotif < 2 -> {
+                setupBusy = true
+                p.edit().putInt("askedNotif", askedNotif + 1).apply()
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+            }
+            needsBattery() && askedBattery < 2 -> {
+                p.edit().putInt("askedBattery", askedBattery + 1).apply()
+                askBatteryWhitelist()
+            }
+            !needsNotifPermission() && !needsBattery() && !p.getBoolean("setupDone", false) -> {
+                p.edit().putBoolean("setupDone", true).apply()
+                toast("İzinler tamam 👍 Şimdi 'Şimdi test et' ile dene, sonra 'Başlat'.")
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        setupBusy = false
+        ui.postDelayed({ setupFlow() }, 400)
+    }
+
+    private fun recheckPermissions() {
+        cfg.prefs.edit().remove("askedNotif").remove("askedBattery").remove("setupDone").apply()
+        if (!needsNotifPermission() && !needsBattery()) toast("Tüm izinler verilmiş 👍") else setupFlow()
     }
 
     override fun onPause() {
@@ -111,7 +149,7 @@ class MainActivity : Activity() {
             button("■ Durdur") { CheckerService.stop(this); toast("Durduruldu"); refresh() },
         )
         row(
-            button("Pil kısıtlamasını kaldır") { askBatteryWhitelist() },
+            button("İzinleri kontrol et") { recheckPermissions() },
             button("Bildirim testi") {
                 Notifier.alert(this, 999, "Test bildirimi", "Bildirimler çalışıyor 👍", cfg.url)
             },
@@ -263,7 +301,8 @@ class MainActivity : Activity() {
         val running = cfg.running
         val last = cfg.prefs.getString("lastSummary", "henüz kontrol yok")
         val pm = getSystemService(PowerManager::class.java)
-        val battery = if (pm.isIgnoringBatteryOptimizations(packageName)) "" else "\n⚠ Pil optimizasyonu açık: arka planda durabilir."
+        val battery = (if (pm.isIgnoringBatteryOptimizations(packageName)) "" else "\n⚠ Pil kısıtlaması açık: arka planda durabilir. 'İzinleri kontrol et'e bas.") +
+            (if (needsNotifPermission()) "\n⚠ Bildirim izni yok! 'İzinleri kontrol et'e bas." else "")
         status.text = (if (running) "🟢 ÇALIŞIYOR" else "🔴 DURDU") + "\nSon: $last$battery"
         logView.text = Store.read(this)
     }
