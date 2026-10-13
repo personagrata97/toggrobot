@@ -49,11 +49,22 @@ object Checker {
         for (r in robots) {
             val prod = products.firstOrNull { r.matchesProduct(it) }
             if (prod == null) {
-                if (error == null) lines += "${r.name}: '${r.product}' sitede bulunamadı"
+                if (error == null) {
+                    lines += "${r.name}: '${r.product}' sitede bulunamadı"
+                    RobotStatus.save(p, r.id, RobotStatus("missing", 0, 0, 0, 0, now))
+                }
                 continue
             }
             val full = r.fullHits(prod)
             val any = r.anyHits(prod)
+            val cheap = prod.variants.firstOrNull()
+            RobotStatus.save(
+                p, r.id,
+                RobotStatus(
+                    if (full.isNotEmpty()) "match" else "none", full.size,
+                    full.firstOrNull()?.turnkey ?: 0, cheap?.turnkey ?: 0, cheap?.sctRate ?: 0, now,
+                )
+            )
             if (full.isNotEmpty()) {
                 lines += "✅ ${r.name}: ${full.size} uygun, en ucuz ${Fmt.price(full.first().turnkey)}"
             } else {
@@ -228,5 +239,24 @@ object Log {
 
     fun clear(ctx: Context) {
         File(ctx.filesDir, "log.txt").delete()
+    }
+}
+
+/** Bir robotun son kontrol sonucu (ana ekrandaki kart icin). */
+data class RobotStatus(val state: String, val count: Int, val best: Long, val cheapest: Long, val cheapestSct: Int, val time: Long) {
+    companion object {
+        fun save(p: android.content.SharedPreferences, id: String, st: RobotStatus) {
+            p.edit().putString(
+                "rs_$id",
+                org.json.JSONObject().put("state", st.state).put("count", st.count).put("best", st.best)
+                    .put("cheapest", st.cheapest).put("sct", st.cheapestSct).put("time", st.time).toString()
+            ).apply()
+        }
+
+        fun load(p: android.content.SharedPreferences, id: String): RobotStatus? {
+            val s = p.getString("rs_$id", null) ?: return null
+            val o = runCatching { org.json.JSONObject(s) }.getOrNull() ?: return null
+            return RobotStatus(o.optString("state"), o.optInt("count"), o.optLong("best"), o.optLong("cheapest"), o.optInt("sct"), o.optLong("time"))
+        }
     }
 }

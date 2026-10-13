@@ -3,11 +3,10 @@ package com.toggrobot
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlarmManager
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -15,25 +14,23 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
-import android.widget.CheckBox
-import android.widget.EditText
+import android.view.Gravity
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
+import com.google.android.material.materialswitch.MaterialSwitch
 
-class MainActivity : UiActivity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var s: Settings
-    private lateinit var status: TextView
-    private lateinit var robotsBox: LinearLayout
-    private lateinit var siteBox: LinearLayout
-    private lateinit var logView: TextView
+    private lateinit var content: LinearLayout
     private val ui = Handler(Looper.getMainLooper())
     private var setupBusy = false
+    private var checking = false
     private val refresher = object : Runnable {
         override fun run() {
-            refreshStatus()
-            ui.postDelayed(this, 3000)
+            render()
+            ui.postDelayed(this, 15_000)
         }
     }
 
@@ -41,13 +38,15 @@ class MainActivity : UiActivity() {
         super.onCreate(savedInstanceState)
         s = Settings(this)
         Notifier.createChannels(this)
-        setContentView(build())
+        content = screen(
+            "Togg Robot", back = false,
+            Triple(R.drawable.ic_refresh, "Şimdi kontrol et") { checkNow() },
+            Triple(R.drawable.ic_settings, "Ayarlar") { startActivity(Intent(this, SettingsActivity::class.java)) },
+        )
     }
 
     override fun onResume() {
         super.onResume()
-        renderRobots()
-        renderSite()
         ui.post(refresher)
         ui.postDelayed({ setupFlow() }, 600)
     }
@@ -57,169 +56,168 @@ class MainActivity : UiActivity() {
         ui.removeCallbacks(refresher)
     }
 
+    private fun render() {
+        content.removeAllViews()
+        heroCard()
+        permissionBanner()
+
+        content.section("Robotlarım", "+ Yeni robot") { startActivity(Intent(this, RobotEditActivity::class.java)) }
+        val robots = s.robots
+        if (robots.isEmpty()) {
+            content.card().tv("Henüz robot yok. '+ Yeni robot' ile istediğin aracı tanımla.", 14f, Palette.MUTED)
+        }
+        robots.forEach { robotCard(it) }
+
+        content.section("Sitede şu an", "Tümünü gör") { startActivity(Intent(this, SiteActivity::class.java)) }
+        siteSummary()
+    }
+
+    // ---------- Durum karti ----------
+
     @SuppressLint("SetTextI18n")
-    private fun build(): ScrollView {
-        val root = vbox(14)
+    private fun heroCard() {
+        val running = s.running
+        val c = content.card(pad = 20, color = Palette.NAVY, stroke = false)
+        c.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Palette.NAVY, Palette.NAVY2)).apply { cornerRadius = dpf(16) }
 
-        status = TextView(this).apply { textSize = 15f; setTextColor(Color.BLACK) }
-        root.card().addView(status)
-        root.row(
-            button("▶ Başlat") { Scheduler.start(this); toast("Başlatıldı"); refreshStatus() },
-            button("■ Durdur") { Scheduler.stop(this); toast("Durduruldu"); refreshStatus() },
-            button("↻ Şimdi kontrol") { checkNow() },
-        )
-
-        root.header("Robotlar")
-        root.text("Her robot kendi isteklerine bakar. Biri sen, biri arkadaşın olabilir.", 13f)
-        robotsBox = vbox()
-        root.addView(robotsBox)
-        root.addView(button("+ Yeni robot ekle") { startActivity(Intent(this, RobotEditActivity::class.java)) })
-
-        root.header("Sitede şu an seçilebilenler")
-        root.text("Sitenin kendi verisinden: hangi kombinasyonlar gerçekten seçilebiliyor, anahtar teslim fiyatı ve ÖTV oranı.", 13f)
-        siteBox = vbox()
-        root.addView(siteBox)
-
-        root.header("Ayarlar")
-        val interval = root.numberField("Kontrol aralığı (dakika)", s.intervalMin.toLong())
-        val repeat = root.numberField("Aynı sonuç için hatırlatma aralığı (dakika, boş = tekrar etme)", s.repeatMin.toLong())
-        root.addView(CheckBox(this).apply {
-            text = "Kesin zamanlama: telefon uykudayken de tam zamanında kontrol et (önerilir)"
-            isChecked = s.exactMode
-            setOnCheckedChangeListener { _, v -> s.exactMode = v }
+        val top = c.hrow()
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val statusRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        statusRow.addView(TextView(this).apply {
+            width = dp(10); height = dp(10)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (running) Color.parseColor("#32D583") else Color.parseColor("#98A2B3"))
+            }
         })
-        root.row(
-            button("Kaydet") {
-                s.intervalMin = interval.text.toString().toIntOrNull() ?: 1
-                s.repeatMin = repeat.text.toString().toIntOrNull() ?: 0
-                if (s.running) Scheduler.scheduleIn(this, 1_000)
-                toast("Kaydedildi")
-            },
-            button("İzinleri kontrol et") { recheckPermissions() },
+        statusRow.addView(TextView(this).apply {
+            text = if (running) "  Takipte" else "  Durduruldu"
+            textSize = 22f; setTextColor(Color.WHITE); setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        left.addView(statusRow)
+        val last = s.prefs.getLong("lastCheck", 0)
+        left.tv(
+            (if (running) "Her ${s.intervalMin} dakikada bir kontrol" else "Başlatmak için düğmeye dokun") +
+                (if (last > 0) "\nSon kontrol: ${Log.time(last)}" else ""),
+            13f, Color.parseColor("#C7D2E0"), top = 4
         )
-        root.row(
-            button("Bildirim testi") { Notifier.alert(this, 9, "Test bildirimi 🔔", "Bildirimler çalışıyor.", Api.SITE) },
-            button("Siteyi aç") { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Api.SITE))) },
-        )
+        top.addView(left, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        top.addView(MaterialSwitch(this).apply {
+            isChecked = running
+            setOnCheckedChangeListener { _, on ->
+                if (on) { Scheduler.start(this@MainActivity); checkNow() } else Scheduler.stop(this@MainActivity)
+                ui.post { render() }
+            }
+        })
 
-        root.header("Telegram (iPhone'a bildirim)")
-        root.text(
-            "1) Telegram'da @BotFather'a yaz → /newbot → bota bir ad ver → verdiği uzun şifreyi (token) aşağıya yapıştır.\n" +
-                "2) Telegram'da yeni botunu aç, Başlat'a bas ve 'merhaba' yaz. Arkadaşın da yazabilir ya da botu bir gruba ekleyebilirsin.\n" +
-                "3) 'Sohbetleri bul'a bas, sonra 'Test mesajı gönder'.", 12f
-        )
-        root.text("Bot token", 13f)
-        val tgToken = EditText(this).apply { setText(s.tgToken); setSingleLine(); hint = "123456:ABC-..." }
-        root.addView(tgToken)
-        root.text("Sohbet numaraları (virgülle)", 13f)
-        val tgChats = EditText(this).apply { setText(s.tgChats); setSingleLine() }
-        root.addView(tgChats)
-        root.row(
-            button("Sohbetleri bul") {
-                s.tgToken = tgToken.text.toString()
-                Thread {
-                    val r = runCatching { Telegram.findChats(s.tgToken) }
-                    ui.post {
-                        r.onSuccess { found ->
-                            if (found.isEmpty()) toast("Kimse bota yazmamış. Telegram'da bota 'merhaba' yaz, tekrar dene.")
-                            else {
-                                val merged = (Telegram.parseChats(tgChats.text.toString()) + found.keys).distinct()
-                                tgChats.setText(merged.joinToString(", "))
-                                s.tgChats = tgChats.text.toString()
-                                toast("Bulundu: " + found.values.joinToString(", "))
-                            }
-                        }.onFailure { toast("Hata: ${it.message} (token doğru mu?)") }
-                    }
-                }.start()
-            },
-            button("Test mesajı gönder") {
-                s.tgToken = tgToken.text.toString(); s.tgChats = tgChats.text.toString()
-                Thread {
-                    val n = Telegram.send(applicationContext, "✅ Togg Robot bağlandı! Uygun araç çıkınca buraya yazacağım.")
-                    ui.post { toast(if (n > 0) "$n sohbete gönderildi 👍" else "Gönderilemedi, kayda bak") }
-                }.start()
-            },
-        )
+        val fails = s.prefs.getInt("fails", 0)
+        if (fails > 0) {
+            c.addView(badge("Siteye ulaşılamadı (${fails}x) — tekrar denenecek", Palette.AMBER, Palette.AMBER_BG).apply {
+                (layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(12)
+            }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        }
+    }
 
-        root.header("Kayıt")
-        root.addView(button("Kaydı temizle") { Log.clear(this); refreshStatus() })
-        logView = TextView(this).apply { typeface = Typeface.MONOSPACE; textSize = 11f; setTextIsSelectable(true) }
-        root.addView(logView)
+    private fun permissionBanner() {
+        val missing = buildList {
+            if (needsNotif()) add("bildirim")
+            if (needsBattery()) add("pil kısıtlaması")
+            if (needsExact()) add("tam zamanlı alarm")
+        }
+        if (missing.isEmpty()) return
+        val c = content.card(color = Palette.AMBER_BG, stroke = false)
+        c.tv("İzin eksik: ${missing.joinToString(", ")}", 14f, Palette.AMBER, bold = true)
+        c.tv("Eksik izin olursa robot arka planda duraklayabilir ya da bildirim gelmeyebilir.", 13f, Palette.AMBER)
+        c.fullWidth(outlinedButton("İzinleri ver") { recheckPermissions() })
+    }
 
-        return ScrollView(this).apply { addView(root) }
+    // ---------- Robot kartlari ----------
+
+    @SuppressLint("SetTextI18n")
+    private fun robotCard(r: Robot) {
+        val c = content.card { startActivity(Intent(this, RobotEditActivity::class.java).putExtra("id", r.id)) }
+        val head = c.hrow()
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titles.tv(r.name, 17f, bold = true)
+        titles.tv(r.product.ifEmpty { "Versiyon seçilmedi" }, 13f, Palette.MUTED)
+        head.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        head.addView(MaterialSwitch(this).apply {
+            isChecked = r.enabled
+            setOnCheckedChangeListener { _, v -> r.enabled = v; s.saveRobot(r); ui.post { render() } }
+        })
+
+        // Durum
+        val st = RobotStatus.load(s.prefs, r.id)
+        val statusView = when {
+            !r.enabled -> badge("Kapalı", Palette.MUTED, Palette.GRAY_BG)
+            st == null -> badge("Henüz kontrol edilmedi", Palette.MUTED, Palette.GRAY_BG)
+            st.state == "match" -> badge("✓ ${st.count} uygun araç · ${Fmt.price(st.best)}", Palette.GREEN, Palette.GREEN_BG)
+            st.state == "missing" -> badge("Versiyon sitede bulunamadı", Palette.RED, Palette.RED_BG)
+            else -> badge("Uygun araç yok", Palette.MUTED, Palette.GRAY_BG)
+        }
+        c.addView(statusView, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = dp(12) })
+        if (r.enabled && st != null && st.state == "none" && st.cheapest > 0) {
+            c.tv("Bu versiyonun şu an en ucuzu ${Fmt.price(st.cheapest)} (ÖTV %${st.cheapestSct})", 12f, Palette.MUTED, top = 6)
+        }
+
+        // Istekler
+        val chips = chipGroup()
+        if (r.maxPrice > 0) chips.addView(infoChip("< ${Fmt.price(r.maxPrice)}", Palette.NAVY, Color.parseColor("#DCE7F5")))
+        for ((title, vals) in r.want) {
+            if (vals.isEmpty()) continue
+            val t = when {
+                vals.size == 1 && vals.first().equals("VAR", true) -> title
+                vals.size == 1 && vals.first().equals("YOK", true) -> "$title ✕"
+                else -> vals.joinToString(" / ") { Fmt.value(it) }
+            }
+            val neg = vals.size == 1 && vals.first().equals("YOK", true)
+            chips.addView(if (neg) infoChip(t, Palette.RED, Palette.RED_BG) else infoChip(t))
+        }
+        c.addView(chips, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(8) })
+    }
+
+    // ---------- Site ozeti ----------
+
+    @SuppressLint("SetTextI18n")
+    private fun siteSummary() {
+        var any = false
+        for ((col, _) in Api.COLLECTIONS) {
+            val products = Cache.products(this, col) ?: continue
+            for (p in products) {
+                any = true
+                val c = content.card(pad = 14) { startActivity(Intent(this, SiteActivity::class.java)) }
+                val row = c.hrow()
+                val t = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                t.tv(p.name, 15f, bold = true)
+                t.tv(
+                    if (p.variants.isEmpty()) "Seçilebilir konfigürasyon yok"
+                    else "${p.variants.size} konfigürasyon seçilebilir",
+                    13f, Palette.MUTED
+                )
+                row.addView(t, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+                p.variants.firstOrNull()?.let { v ->
+                    val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.END }
+                    right.tv(Fmt.price(v.turnkey), 15f, bold = true).gravity = Gravity.END
+                    right.tv("ÖTV %${v.sctRate}", 12f, if (v.sctRate <= 25) Palette.GREEN else Palette.AMBER).gravity = Gravity.END
+                    row.addView(right)
+                }
+            }
+        }
+        if (!any) content.card().tv("Henüz veri yok. Sağ üstteki ↻ ile kontrol et.", 14f, Palette.MUTED)
     }
 
     private fun checkNow() {
-        toast("Kontrol ediliyor...")
+        if (checking) return
+        checking = true
+        toast("Kontrol ediliyor…")
         Thread {
             val o = Checker.run(applicationContext)
             ui.post {
-                toast(if (o.ok) "Kontrol tamam" else "Hata: ${o.summary.lineSequence().first()}")
-                refreshStatus(); renderSite()
+                checking = false
+                if (!o.ok) toast(o.summary.lineSequence().first().removePrefix("⚠ "))
+                render()
             }
         }.start()
-    }
-
-    @SuppressLint("SetTextI18n")
-    private fun refreshStatus() {
-        val last = s.prefs.getLong("lastCheck", 0)
-        val warn = buildString {
-            if (needsNotif()) append("\n⚠ Bildirim izni yok → 'İzinleri kontrol et'")
-            if (needsBattery()) append("\n⚠ Pil kısıtlaması açık → 'İzinleri kontrol et'")
-            if (needsExact()) append("\n⚠ Tam zamanlı alarm izni yok → 'İzinleri kontrol et'")
-        }
-        status.text = (if (s.running) "🟢 ÇALIŞIYOR — her ${s.intervalMin} dk" else "🔴 DURDU") +
-            "\nSon kontrol: " + (if (last > 0) Log.time(last) else "henüz yok") +
-            "\n" + (s.prefs.getString("lastSummary", "") ?: "") + warn
-        logView.text = Log.read(this)
-    }
-
-    private fun renderRobots() {
-        robotsBox.removeAllViews()
-        val robots = s.robots
-        if (robots.isEmpty()) robotsBox.text("Henüz robot yok.")
-        for (r in robots) {
-            val c = robotsBox.card()
-            val title = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            title.addView(TextView(this).apply {
-                text = r.name; textSize = 16f; setTypeface(null, Typeface.BOLD); setTextColor(Color.BLACK)
-            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            title.addView(CheckBox(this).apply {
-                text = "Aktif"; isChecked = r.enabled
-                setOnCheckedChangeListener { _, v -> r.enabled = v; s.saveRobot(r) }
-            })
-            c.addView(title)
-            c.text(r.describe(), 13f)
-            if (r.anyMaxPrice > 0) c.text("Ayrıca: bu versiyon herhangi bir şekilde ${Fmt.price(r.anyMaxPrice)} altına düşerse haber ver", 12f)
-            c.row(
-                button("Düzenle") { startActivity(Intent(this, RobotEditActivity::class.java).putExtra("id", r.id)) },
-                button("Sil") {
-                    AlertDialog.Builder(this).setMessage("'${r.name}' silinsin mi?")
-                        .setPositiveButton("Sil") { _, _ -> s.deleteRobot(r.id); renderRobots() }
-                        .setNegativeButton("Vazgeç", null).show()
-                },
-            )
-        }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private fun renderSite() {
-        siteBox.removeAllViews()
-        var any = false
-        for ((col, label) in Api.COLLECTIONS) {
-            val products = Cache.products(this, col) ?: continue
-            any = true
-            for (p in products) {
-                val c = siteBox.card()
-                c.addView(TextView(this).apply {
-                    text = p.name; textSize = 15f; setTypeface(null, Typeface.BOLD); setTextColor(Color.BLACK)
-                })
-                if (p.variants.isEmpty()) c.text("Şu an seçilebilir konfigürasyon yok.")
-                for (v in p.variants) c.text("• " + Fmt.variantLine(v), 12f)
-                c.text("($label • liste fiyatı ${Fmt.price(p.basePrice25)}'den başlıyor, ÖTV %25 ile)", 11f, Color.GRAY)
-            }
-        }
-        if (!any) siteBox.text("Henüz veri yok. '↻ Şimdi kontrol' ile çek.")
     }
 
     // ---------- Izinler ----------
@@ -245,17 +243,21 @@ class MainActivity : UiActivity() {
             }
             needsBattery() && asked("askBattery") < 2 -> {
                 mark("askBattery")
-                startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                runCatching {
+                    startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                }
             }
             needsExact() && asked("askExact") < 2 -> {
                 mark("askExact")
-                startActivity(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+                runCatching {
+                    startActivity(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+                }
             }
             !p.getBoolean("firstStartDone", false) && !needsNotif() -> {
                 p.edit().putBoolean("firstStartDone", true).apply()
                 Scheduler.start(this)
                 checkNow()
-                toast("İzinler tamam, robot çalışmaya başladı 👍")
+                toast("Hazır! Robot takibe başladı 👍")
             }
         }
     }
@@ -268,6 +270,6 @@ class MainActivity : UiActivity() {
 
     private fun recheckPermissions() {
         s.prefs.edit().remove("askNotif").remove("askBattery").remove("askExact").apply()
-        if (!needsNotif() && !needsBattery() && !needsExact()) toast("Tüm izinler tamam 👍") else setupFlow()
+        setupFlow()
     }
 }

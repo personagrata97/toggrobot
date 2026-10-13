@@ -1,169 +1,192 @@
 package com.toggrobot
 
-import android.graphics.Color
-import android.graphics.Typeface
+import android.app.AlertDialog
 import android.os.Bundle
-import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.CheckBox
-import android.widget.EditText
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Spinner
-import android.widget.TextView
+import com.google.android.material.chip.ChipGroup
 
 /** Robot ekleme / duzenleme. Secenekler sitenin gercek verisinden listelenir. */
-class RobotEditActivity : UiActivity() {
+class RobotEditActivity : BaseActivity() {
 
     private lateinit var s: Settings
     private lateinit var robot: Robot
+    private lateinit var versionGroup: ChipGroup
     private lateinit var optionsBox: LinearLayout
-    private lateinit var productSpinner: Spinner
     private val collections = Api.COLLECTIONS.keys.toList()
     private var products: List<Product> = emptyList()
+    private var isNew = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         s = Settings(this)
         val id = intent.getStringExtra("id")
-        robot = s.robots.firstOrNull { it.id == id }?.let { Robot.fromJson(it.toJson()) }
+        val existing = s.robots.firstOrNull { it.id == id }
+        isNew = existing == null
+        robot = existing?.let { Robot.fromJson(it.toJson()) }
             ?: Robot(Robot.newId(), "Robot ${s.robots.size + 1}", true, "t10f-configurator", "", linkedMapOf(), 0, 0)
-        title = if (id == null) "Yeni robot" else "Robotu düzenle"
 
-        val root = vbox(14)
-        root.text("Robot adı", 13f)
-        val name = EditText(this).apply { setText(robot.name); setSingleLine() }
-        root.addView(name)
+        val actions: Array<Triple<Int, String, () -> Unit>> =
+            if (isNew) emptyArray() else arrayOf(Triple(R.drawable.ic_delete, "Sil") { confirmDelete() })
+        val content = screen(if (isNew) "Yeni robot" else robot.name, back = true, *actions)
 
-        root.text("Model", 13f)
-        val modelSpinner = Spinner(this)
-        modelSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, collections.map { Api.COLLECTIONS[it] })
-        modelSpinner.setSelection(collections.indexOf(robot.collection).coerceAtLeast(0))
-        root.addView(modelSpinner)
-
-        root.text("Versiyon", 13f)
-        productSpinner = Spinner(this)
-        root.addView(productSpinner)
-
-        root.header("Seçenekler")
-        root.text(
-            "İşaretlediklerin şart olur. Bir seçenekte hiçbir şey işaretlemezsen 'fark etmez' sayılır. " +
-                "Aynı seçenekte birden fazla işaretlersen biri olsun yeter (ör. Renk: Kula veya Seyhan). " +
-                "Gelmesini istemediğin donanım için 'Yok'u işaretle (ör. Meridian: Yok).", 12f
-        )
-        optionsBox = vbox()
-        root.addView(optionsBox)
-
-        root.header("Fiyat")
-        val maxPrice = root.numberField("Anahtar teslim fiyat şunun ALTINDAYSA alarm (₺)", robot.maxPrice)
-        val anyPrice = root.numberField(
-            "Ek alarm: seçenekler tutmasa da bu versiyonun herhangi bir konfigürasyonu şunun altındaysa haber ver (₺)",
-            robot.anyMaxPrice
-        )
-
-        root.header("Telegram")
-        root.text("Bu robotun mesajları hangi Telegram sohbetlerine gitsin? Boş bırakırsan ana ekrandaki Telegram ayarındaki herkese gider. " +
-            "Arkadaşının robotu için onun sohbet numarasını yaz.", 12f)
-        val tg = EditText(this).apply { setText(robot.tgChats); setSingleLine(); hint = "ör. 123456789" }
-        root.addView(tg)
-
-        root.row(
-            button("💾 Kaydet") {
-                robot.tgChats = tg.text.toString().trim()
-                robot.name = name.text.toString().trim().ifEmpty { "Robot" }
-                robot.maxPrice = maxPrice.text.toString().toLongOrNull() ?: 0
-                robot.anyMaxPrice = anyPrice.text.toString().toLongOrNull() ?: 0
-                if (robot.product.isEmpty()) {
-                    toast("Önce versiyon seç (veri yüklenmediyse internet bağlantısını kontrol et)")
-                    return@button
-                }
-                robot.want.entries.removeAll { it.value.isEmpty() }
-                s.saveRobot(robot)
-                toast("Kaydedildi")
-                finish()
-            },
-            button("Vazgeç") { finish() },
-        )
-        setContentView(ScrollView(this).apply { addView(root) })
-
-        modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                val col = collections[pos]
+        // ---- Genel ----
+        content.section("Genel")
+        val c1 = content.card()
+        val name = c1.field("Robot adı", robot.name, helper = "Ör. 'Benim T10F'im' ya da 'Ahmet'in aracı'")
+        c1.tv("Model", 13f, Palette.MUTED, top = 14)
+        c1.addView(
+            segmented(collections.map { Api.COLLECTIONS[it] ?: it }, collections.indexOf(robot.collection).coerceAtLeast(0)) { i ->
+                val col = collections[i]
                 if (col != robot.collection) {
-                    robot.collection = col
-                    robot.product = ""
-                    robot.want.clear()
+                    robot.collection = col; robot.product = ""; robot.want.clear()
+                    loadProducts()
                 }
-                loadProducts(col)
-            }
+            },
+            LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) }
+        )
+        c1.tv("Versiyon", 13f, Palette.MUTED, top = 14)
+        versionGroup = chipGroup().apply { isSingleSelection = true; isSelectionRequired = true }
+        c1.addView(versionGroup)
 
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
-        productSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, pos: Int, id: Long) {
-                val p = products.getOrNull(pos) ?: return
-                if (!Robot.norm(p.name).equals(Robot.norm(robot.product))) {
-                    robot.product = p.name
-                    robot.want.clear()
-                }
-                renderOptions(p)
-            }
+        // ---- Secenekler ----
+        content.section("İstediğin özellikler")
+        content.tv(
+            "Seçmediğin her şey 'fark etmez' sayılır. Aynı başlıkta birden fazla seçersen biri olsun yeter (ör. Kula veya Seyhan).",
+            13f, Palette.MUTED
+        )
+        optionsBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(optionsBox)
 
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        // ---- Fiyat ----
+        content.section("Fiyat")
+        val c3 = content.card()
+        val maxPrice = c3.field(
+            "En fazla anahtar teslim fiyat", if (robot.maxPrice > 0) robot.maxPrice.toString() else "",
+            numeric = true, suffix = "₺", helper = "Bu fiyatın altındaysa alarm çalar. Boş = fiyat fark etmez."
+        )
+        val anyPrice = c3.field(
+            "Ek alarm (isteğe bağlı)", if (robot.anyMaxPrice > 0) robot.anyMaxPrice.toString() else "",
+            numeric = true, suffix = "₺",
+            helper = "Özellikler tutmasa bile bu versiyon bu fiyatın altına inerse haber ver."
+        )
+
+        // ---- Telegram ----
+        content.section("Telegram")
+        val c4 = content.card()
+        val tg = c4.field(
+            "Bu robotun mesajları kime gitsin?", robot.tgChats,
+            helper = "Boş = Ayarlar'daki Telegram sohbetleri. Arkadaşın için onun sohbet numarası."
+        )
+
+        content.fullWidth(primaryButton("Kaydet") {
+            robot.name = name.text.toString().trim().ifEmpty { "Robot" }
+            robot.maxPrice = maxPrice.text.toString().toLongOrNull() ?: 0
+            robot.anyMaxPrice = anyPrice.text.toString().toLongOrNull() ?: 0
+            robot.tgChats = tg.text.toString().trim()
+            if (robot.product.isEmpty()) {
+                toast("Önce versiyon seç")
+                return@primaryButton
+            }
+            robot.want.entries.removeAll { it.value.isEmpty() }
+            s.saveRobot(robot)
+            toast("Kaydedildi")
+            finish()
+        }, top = 24)
+
+        versionGroup.setOnCheckedStateChangeListener { _, ids ->
+            val p = ids.firstOrNull()?.let { products.getOrNull(versionGroup.indexOfChild(versionGroup.findViewById(it))) }
+                ?: return@setOnCheckedStateChangeListener
+            if (Robot.norm(p.name) != Robot.norm(robot.product)) {
+                robot.product = p.name
+                robot.want.clear()
+            }
+            renderOptions(p)
         }
+        loadProducts()
     }
 
-    private fun loadProducts(col: String) {
-        Cache.products(this, col)?.let { showProducts(it) }
-        if (Cache.products(this, col) == null) {
+    private fun confirmDelete() {
+        AlertDialog.Builder(this).setMessage("'${robot.name}' silinsin mi?")
+            .setPositiveButton("Sil") { _, _ -> s.deleteRobot(robot.id); finish() }
+            .setNegativeButton("Vazgeç", null).show()
+    }
+
+    private fun loadProducts() {
+        val col = robot.collection
+        val cached = Cache.products(this, col)
+        if (cached != null) showProducts(cached) else {
+            versionGroup.removeAllViews()
             optionsBox.removeAllViews()
-            optionsBox.text("Siteden seçenekler yükleniyor...")
+            optionsBox.card().tv("Seçenekler siteden yükleniyor…", 14f, Palette.MUTED)
         }
         Thread {
-            val fresh = runCatching { Api.fetch(col).also { Cache.put(this, col, it) } }
-                .mapCatching { Api.parse(col, it) }
+            val fresh = runCatching { Api.fetch(col).also { Cache.put(this, col, it) } }.mapCatching { Api.parse(col, it) }
             runOnUiThread {
                 if (isFinishing || col != robot.collection) return@runOnUiThread
-                fresh.onSuccess { if (it.map { p -> p.name } != products.map { p -> p.name }) showProducts(it) }
-                    .onFailure { if (products.isEmpty()) toast("Veri alınamadı: ${it.message}") }
+                fresh.onSuccess { if (it.map { p -> p.name } != products.map { p -> p.name } || cached == null) showProducts(it) }
+                    .onFailure { if (products.isEmpty()) toast("Siteye ulaşılamadı: ${it.message}") }
             }
         }.start()
     }
 
     private fun showProducts(list: List<Product>) {
         products = list
-        productSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, list.map { it.name })
-        val i = list.indexOfFirst { Robot.norm(it.name) == Robot.norm(robot.product) }
-        if (i >= 0) productSpinner.setSelection(i) else if (list.isNotEmpty()) productSpinner.setSelection(0)
+        versionGroup.removeAllViews()
+        var sel = list.indexOfFirst { Robot.norm(it.name) == Robot.norm(robot.product) }
+        if (sel < 0 && list.isNotEmpty()) sel = 0
+        list.forEachIndexed { i, p ->
+            versionGroup.addView(filterChip(p.name, false) {}.apply { id = android.view.View.generateViewId() })
+            if (i == sel) (versionGroup.getChildAt(i) as com.google.android.material.chip.Chip).isChecked = true
+        }
+        if (sel < 0) optionsBox.removeAllViews()
     }
+
+    private fun isYesNo(o: Option) = o.values.all { it.value.equals("VAR", true) || it.value.equals("YOK", true) }
 
     private fun renderOptions(p: Product) {
         optionsBox.removeAllViews()
         for ((group, opts) in p.options.groupBy { it.group }) {
-            optionsBox.addView(TextView(this).apply {
-                text = group; textSize = 14f; setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#0E2A47"))
-                setPadding(0, dp(10), 0, 0)
-            })
-            for (o in opts) {
-                val c = optionsBox.card()
-                if (o.title != group) c.addView(TextView(this).apply { text = o.title; setTypeface(null, Typeface.BOLD) })
+            val c = optionsBox.card()
+            c.tv(group, 16f, bold = true)
+            opts.forEachIndexed { i, o ->
+                if (i > 0) c.divider()
                 val chosen = robot.want.getOrPut(o.title) { linkedSetOf() }
-                for (v in o.values) {
-                    val extra = if (v.price25 > 0) "  (+${Fmt.price(v.price25)})" else ""
-                    c.addView(CheckBox(this).apply {
-                        text = Fmt.value(v.value) + extra
-                        isChecked = chosen.any { Robot.norm(it) == Robot.norm(v.value) }
-                        setOnCheckedChangeListener { _, on ->
+                if (isYesNo(o)) {
+                    val price = o.values.firstOrNull { it.value.equals("VAR", true) }?.price25 ?: 0
+                    if (o.title != group || opts.size > 1) {
+                        c.tv(o.title, 14f, bold = true, top = if (i == 0) 8 else 0)
+                    }
+                    if (price > 0) c.tv("+${Fmt.price(price)}", 12f, Palette.MUTED)
+                    val hasNo = o.values.any { it.value.equals("YOK", true) }
+                    val labels = if (hasNo) listOf("Fark etmez", "Olsun", "Olmasın") else listOf("Fark etmez", "Olsun")
+                    val current = when {
+                        chosen.any { it.equals("VAR", true) } && chosen.size == 1 -> 1
+                        chosen.any { it.equals("YOK", true) } && chosen.size == 1 && hasNo -> 2
+                        else -> 0
+                    }
+                    c.addView(segmented(labels, current) { idx ->
+                        chosen.clear()
+                        when (idx) { 1 -> chosen += "VAR"; 2 -> chosen += "YOK" }
+                    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
+                } else {
+                    if (o.title != group) c.tv(o.title, 14f, bold = true, top = if (i == 0) 8 else 0)
+                    val chips = chipGroup()
+                    for (v in o.values) {
+                        val extra = if (v.price25 > 0) " +${Fmt.price(v.price25)}" else ""
+                        chips.addView(filterChip(Fmt.value(v.value) + extra, chosen.any { Robot.norm(it) == Robot.norm(v.value) }) { on ->
                             chosen.removeAll { Robot.norm(it) == Robot.norm(v.value) }
                             if (on) chosen += v.value
-                        }
-                    })
+                        })
+                    }
+                    c.addView(chips, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(6) })
                 }
-                if (o.values.size == 1) c.text("Bu versiyonda tek seçenek var.", 11f, Color.GRAY)
             }
         }
-        val avail = p.variants.size
-        optionsBox.text("Şu an bu versiyonda $avail seçilebilir konfigürasyon var.", 12f, Color.GRAY)
+        optionsBox.tv(
+            "Bu versiyonda şu an ${p.variants.size} konfigürasyon seçilebiliyor.",
+            12f, Palette.MUTED, top = 8
+        )
     }
 }

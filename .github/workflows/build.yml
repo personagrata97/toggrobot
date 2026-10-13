@@ -5,6 +5,8 @@ on:
     paths-ignore:
       - "tools/**"
       - ".github/workflows/explore.yml"
+      - ".github/workflows/screens.yml"
+      - "tools/screens.sh"
   workflow_dispatch:
 
 permissions:
