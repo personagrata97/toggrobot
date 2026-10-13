@@ -11,15 +11,24 @@ android {
         applicationId = "com.toggrobot"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
+    }
+
+    // Sabit imza anahtari: yeni surumler eskisinin uzerine guncelleme olarak kurulur, ayarlar silinmez
+    signingConfigs {
+        create("toggrobot") {
+            storeFile = file("toggrobot.jks")
+            storePassword = "toggrobot"
+            keyAlias = "toggrobot"
+            keyPassword = "toggrobot"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Kolay kurulum icin debug anahtari ile imzala
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("toggrobot")
         }
     }
     compileOptions {
