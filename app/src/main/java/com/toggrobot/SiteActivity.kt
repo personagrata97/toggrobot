@@ -75,8 +75,8 @@ class SiteActivity : BaseActivity() {
             }
         }
         if (!any) content.card().tv("Henüz veri yok. Sağ üstteki ↻ ile yenile.", 14f, Palette.MUTED)
-        content.fullWidth(outlinedButton("Konfigüratörü tarayıcıda aç") {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Api.SITE)))
+        content.fullWidth(outlinedButton("Konfigüratörü aç (bilgisayar görünümü)") {
+            startActivity(WebActivity.intent(this))
         }, top = 20)
         content.gravity = Gravity.TOP
     }

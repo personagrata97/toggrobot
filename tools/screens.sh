@@ -33,5 +33,9 @@ scroll; shot 11-ayarlar-2 2
 adb shell am start -W -n $P/.RobotEditActivity
 shot 12-yeni-robot 6
 
+adb shell am start -W -n $P/.WebActivity
+shot 13-site-bilgisayar-gorunumu 25
+adb shell dumpsys activity activities | grep -i "mResumedActivity\|topResumedActivity" > shots/web-aktif-ekran.txt
+
 adb logcat -d -s AndroidRuntime:E > shots/crash-log.txt
 ls -la shots

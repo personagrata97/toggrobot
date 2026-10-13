@@ -40,6 +40,10 @@ object Api {
         "https://bff.dfs.togg.cloud/smart-device-products/TUR/getSmartDeviceProducts/v1?collectionHandle="
     const val SITE = "https://configurator.togg.com.tr/"
 
+    /** Bilgisayardaki Chrome'un kimligi: istekler sitenin masaustunden gelenlerle ayni gorunur. */
+    const val DESKTOP_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+
     /** collectionHandle -> gorunen ad */
     val COLLECTIONS = linkedMapOf("t10f-configurator" to "T10F", "t10x-configurator" to "T10X")
 
@@ -52,6 +56,8 @@ object Api {
         c.readTimeout = 15_000
         c.useCaches = false
         c.setRequestProperty("Accept", "application/json, text/plain, */*")
+        c.setRequestProperty("User-Agent", DESKTOP_UA)
+        c.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9")
         c.setRequestProperty("Authorization", "Bearer unauthorized") // sitenin kendisi de bunu gonderiyor
         c.setRequestProperty("Origin", "https://configurator.togg.com.tr")
         c.setRequestProperty("Referer", SITE)

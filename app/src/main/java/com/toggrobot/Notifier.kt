@@ -40,9 +40,9 @@ object Notifier {
     /** Robot id + tur icin sabit bildirim numarasi (her robotun bildirimi ayri durur). */
     fun idFor(robotId: String, kind: String) = 1000 + ((robotId + kind).hashCode() and 0xFFFFF)
 
+    /** Bildirime dokununca site uygulama icinde, bilgisayar gorunumunde acilir (mobil uygulamaya yonlendirme olmaz). */
     private fun openSite(ctx: Context, id: Int) = PendingIntent.getActivity(
-        ctx, id, Intent(Intent.ACTION_VIEW, Uri.parse(Api.SITE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        PendingIntent.FLAG_IMMUTABLE
+        ctx, id, WebActivity.intent(ctx), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     )
 
     fun alert(ctx: Context, id: Int, title: String, text: String, @Suppress("UNUSED_PARAMETER") url: String) {

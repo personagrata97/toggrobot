@@ -40,6 +40,11 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".WebActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+
+        <activity
             android:name=".SiteActivity"
             android:exported="false" />
 
