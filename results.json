@@ -1,0 +1,37 @@
+[
+ {
+  "name": "A-masaustu-genis",
+  "blocked": false,
+  "err": null
+ },
+ {
+  "name": "B-masaustuUA-dar-ekran",
+  "blocked": true,
+  "err": null
+ },
+ {
+  "name": "C-masaustuUA-genis-dokunmatik",
+  "blocked": false,
+  "err": null
+ },
+ {
+  "name": "D-mobilUA-genis",
+  "blocked": false,
+  "err": null
+ },
+ {
+  "name": "E-masaustuUA-dar-dokunmatik-mobil",
+  "blocked": true,
+  "err": null
+ },
+ {
+  "name": "F-1024-genislik",
+  "blocked": false,
+  "err": null
+ },
+ {
+  "name": "G-800-genislik",
+  "blocked": true,
+  "err": null
+ }
+]
