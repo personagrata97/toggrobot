@@ -116,11 +116,11 @@ class MainActivity : BaseActivity() {
                 background = GradientDrawable().apply { cornerRadius = dpf(16); setColor(Color.parseColor("#1AFFFFFF")) }
             }
             box.tv(label, 12f, Color.parseColor("#9FB6D1"))
-            box.tv(value, 15f, Color.WHITE).typeface = Palette.MEDIUM
+            box.tv(value, 15f, Color.WHITE).apply { typeface = Palette.MEDIUM; maxLines = 1 }
             stats.addView(box, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
         }
         stat("Son kontrol", if (last > 0) Log.time(last).substringAfter(' ').substring(0, 5) else "—")
-        stat("Sıklık", if (night) "${s.nightIntervalH} saatte bir" else "${s.intervalMin} dakikada bir")
+        stat("Sıklık", if (night) "${s.nightIntervalH} saat" else "${s.intervalMin} dk")
         stat("Gece", if (s.nightMode) "%02d–%02d".format(s.nightStart, s.nightEnd) else "Kapalı")
 
         val fails = s.prefs.getInt("fails", 0)
