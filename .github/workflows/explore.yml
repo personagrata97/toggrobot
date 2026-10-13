@@ -29,8 +29,11 @@ jobs:
           cd tools
           node explore.js ../dump || true
           ls -la ../dump
-          echo "===== DESKTOP LOG"; cat ../dump/desktop-log.txt || true
-          echo "===== MOBILE LOG"; cat ../dump/mobile-log.txt || true
+          cat ../dump/log.txt || true
+          # API tarayicisiz (duz istekle) calisiyor mu?
+          for h in t10f-configurator t10x-configurator t10f T10F-configurator; do
+            curl -s -o ../dump/curl-$h.json -w "$h %{http_code} %{size_download}\n" "https://bff.dfs.togg.cloud/smart-device-products/TUR/getSmartDeviceProducts/v1?collectionHandle=$h" | tee -a ../dump/curl.txt
+          done
       - name: Sonuclari site-dump dalina yaz
         run: |
           git config user.name "toggrobot-bot"

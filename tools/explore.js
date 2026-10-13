@@ -1,82 +1,51 @@
-// Siteyi gercek Chrome ile acar; ekran goruntusu, metin, DOM ve ag isteklerini kaydeder.
-// Ardindan bot.js'i ayni sayfada calistirip sonucunu kaydeder.
+// Gercek siteyi acar, T10F sekmesine tiklar; togg API cagrilarini (istek basliklariyla) kaydeder.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
 const OUT = process.argv[2] || 'dump';
-const URL = process.env.TOGG_URL || 'https://configurator.togg.com.tr/';
+const URL = 'https://configurator.togg.com.tr/';
 fs.mkdirSync(OUT, { recursive: true });
 
-async function session(name, contextOpts, fn) {
+(async () => {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ locale: 'tr-TR', timezoneId: 'Europe/Istanbul', ...contextOpts });
+  const ctx = await browser.newContext({ locale: 'tr-TR', timezoneId: 'Europe/Istanbul', viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
-  const net = [];
+  const api = [];
   page.on('response', async (r) => {
     const req = r.request();
-    const type = req.resourceType();
-    if (!['xhr', 'fetch', 'document'].includes(type)) return;
-    const e = { url: r.url(), method: req.method(), status: r.status(), type, ct: r.headers()['content-type'] || '' };
-    if (req.method() !== 'GET') e.postData = (req.postData() || '').slice(0, 3000);
-    try {
-      if (/json|text\/plain|graphql/.test(e.ct)) {
-        const body = await r.text();
-        e.size = body.length;
-        const f = `${name}-net-${net.length}.txt`;
-        fs.writeFileSync(path.join(OUT, f), body.slice(0, 400000));
-        e.file = f;
-      }
-    } catch (err) { e.err = String(err); }
-    net.push(e);
+    if (!/togg\.cloud|togg\.com\.tr\/api/.test(r.url())) return;
+    const e = { url: r.url(), method: req.method(), status: r.status(), reqHeaders: await req.allHeaders(), postData: req.postData() };
+    try { const b = await r.text(); e.file = `api-${api.length}.json`; fs.writeFileSync(path.join(OUT, e.file), b); } catch (err) {}
+    api.push(e);
   });
-  page.on('dialog', d => d.dismiss());
   const log = [];
+  const snap = async (n) => {
+    await page.screenshot({ path: path.join(OUT, n + '.png'), fullPage: true }).catch(() => {});
+    fs.writeFileSync(path.join(OUT, n + '.txt'), await page.evaluate(() => document.body.innerText).catch(String));
+  };
   try {
-    await fn(page, log);
-  } catch (err) {
-    log.push('HATA: ' + (err.stack || err));
-  }
-  fs.writeFileSync(path.join(OUT, `${name}-network.json`), JSON.stringify(net, null, 1));
-  fs.writeFileSync(path.join(OUT, `${name}-log.txt`), log.join('\n'));
-  await browser.close();
-}
-
-async function snap(page, name, step) {
-  const base = path.join(OUT, `${name}-${step}`);
-  await page.screenshot({ path: base + '.png', fullPage: true }).catch(() => {});
-  fs.writeFileSync(base + '.txt', await page.evaluate(() => document.body ? document.body.innerText : '').catch(e => String(e)));
-  fs.writeFileSync(base + '.html', await page.content().catch(e => String(e)));
-}
-
-(async () => {
-  // 1) Masaustu: sadece ac ve kaydet
-  await session('desktop', { viewport: { width: 1440, height: 900 } }, async (page, log) => {
-    const resp = await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    log.push('status ' + (resp && resp.status()) + ' url ' + page.url());
-    await page.waitForTimeout(12000);
-    await snap(page, 'desktop', '0-acilis');
-  });
-
-  // 2) Mobil (telefondaki WebView gibi): bot.js'i calistir
-  const bot = fs.readFileSync(path.join(__dirname, '..', 'app/src/main/assets/bot.js'), 'utf8');
-  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'botcfg.json'), 'utf8'));
-  await session('mobile', {
-    viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true,
-    userAgent: 'Mozilla/5.0 (Linux; Android 13; SM-G781B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
-  }, async (page, log) => {
     await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(3000);
-    await snap(page, 'mobile', '0-acilis');
-    await page.evaluate(bot);
-    await page.exposeFunction('__botLog', m => log.push(m));
-    const res = await page.evaluate(c => new Promise(r => {
-      window.ToggBridge = { log: m => window.__botLog(m), report: s => r(JSON.parse(s)) };
-      TOGGBOT.start(c);
-    }), { ...cfg, runId: 'gh', debug: true });
-    const pageText = res.pageText; delete res.pageText;
-    fs.writeFileSync(path.join(OUT, 'mobile-bot-result.json'), JSON.stringify(res, null, 1));
-    fs.writeFileSync(path.join(OUT, 'mobile-bot-pagetext.txt'), pageText || '');
-    await snap(page, 'mobile', '9-bot-sonu');
-  });
+    await page.waitForTimeout(8000);
+    // cerez
+    for (const t of ['Tümüne İzin Ver', 'Tümünü Kabul Et', 'Kabul Et', 'İzin ver']) {
+      const b = page.getByRole('button', { name: t });
+      if (await b.count()) { await b.first().click().catch(() => {}); log.push('cerez: ' + t); break; }
+    }
+    await snap('1-acilis');
+    const t10f = page.getByText('T10F', { exact: true });
+    log.push('T10F eleman sayisi: ' + await t10f.count());
+    if (await t10f.count()) {
+      const el = t10f.first();
+      log.push('T10F html: ' + (await el.evaluate(e => e.outerHTML.slice(0, 400) + ' || parent: ' + e.parentElement.outerHTML.slice(0, 600))));
+      await el.click();
+      await page.waitForTimeout(8000);
+      log.push('url sonra: ' + page.url());
+      await snap('2-t10f');
+    }
+    fs.writeFileSync(path.join(OUT, '2-t10f.html'), await page.content());
+  } catch (err) { log.push('HATA ' + (err.stack || err)); }
+  fs.writeFileSync(path.join(OUT, 'api.json'), JSON.stringify(api, null, 1));
+  fs.writeFileSync(path.join(OUT, 'log.txt'), log.join('\n'));
+  await browser.close();
 })();
