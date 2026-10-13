@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Togg Robot</string>
+    <style name="Theme.ToggRobot" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#0B1F3A</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#DCE7F5</item>
+        <item name="colorOnPrimaryContainer">#0E1A2B</item>
+        <item name="colorSecondary">#00A3B4</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">#D3F3F6</item>
+        <item name="colorOnSecondaryContainer">#003C43</item>
+        <item name="android:colorBackground">#F5F6F8</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#101828</item>
+        <item name="colorOutline">#D0D5DD</item>
+        <item name="android:statusBarColor">#F5F6F8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F5F6F8</item>
+    </style>
+</resources>

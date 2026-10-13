@@ -1,0 +1,11 @@
+R_DEF: Internal format may change without notice
+local
+drawable ic_add
+drawable ic_back
+drawable ic_delete
+drawable ic_launcher
+drawable ic_refresh
+drawable ic_settings
+drawable ic_stat
+string app_name
+style Theme.ToggRobot

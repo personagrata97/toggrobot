@@ -1,0 +1,30 @@
+[
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_stat.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_stat.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_launcher.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_launcher.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_settings.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_settings.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_delete.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_delete.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_add.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_add.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_back.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_back.xml"
+    },
+    {
+        "merged": "com.toggrobot.app-release-31:/drawable_ic_refresh.xml.flat",
+        "source": "com.toggrobot.app-main-32:/drawable/ic_refresh.xml"
+    }
+]

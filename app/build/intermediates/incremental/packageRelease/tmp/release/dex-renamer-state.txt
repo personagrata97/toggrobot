@@ -1,0 +1,4 @@
+#Tue Oct 13 21:33:59 UTC 2026
+base.0=/home/runner/work/toggrobot/toggrobot/app/build/intermediates/dex/release/mergeDexRelease/classes.dex
+renamed.0=classes.dex
+path.0=classes.dex
