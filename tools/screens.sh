@@ -3,6 +3,8 @@
 set -x
 mkdir -p shots
 P=com.toggrobot
+# Ic ekranlari (exported=false) dogrudan acabilmek icin root
+adb root; sleep 3; adb wait-for-device
 adb install -r app/build/outputs/apk/release/app-release.apk
 adb shell pm grant $P android.permission.POST_NOTIFICATIONS
 adb shell dumpsys deviceidle whitelist +$P

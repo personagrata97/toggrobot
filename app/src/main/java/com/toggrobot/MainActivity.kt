@@ -105,6 +105,13 @@ class MainActivity : BaseActivity() {
         )
         top.addView(left, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
         top.addView(MaterialSwitch(this).apply {
+            // Koyu kart uzerinde gorunur olsun: acikken turkuaz
+            trackTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(Palette.ACCENT, Color.parseColor("#3A4A63"))
+            )
+            thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+            trackDecorationTintList = android.content.res.ColorStateList.valueOf(Color.TRANSPARENT)
             isChecked = running
             setOnCheckedChangeListener { _, on ->
                 if (on) { Scheduler.start(this@MainActivity); checkNow() } else Scheduler.stop(this@MainActivity)
