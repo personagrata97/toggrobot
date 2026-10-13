@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          gradle --no-daemon assembleRelease
+          gradle --no-daemon testReleaseUnitTest assembleRelease
 
       - name: APK'yi yeniden adlandir
         run: cp app/build/outputs/apk/release/app-release.apk ToggRobot.apk
