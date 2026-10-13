@@ -1,0 +1,44 @@
+name: Site incele
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tools/**"
+      - ".github/workflows/explore.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  explore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Playwright kur
+        run: |
+          cd tools
+          npm init -y > /dev/null
+          npm i playwright@1.48.2 > /dev/null
+          npx playwright install --with-deps chromium > /dev/null
+      - name: Siteyi gez
+        run: |
+          cd tools
+          node explore.js ../dump || true
+          ls -la ../dump
+          echo "===== DESKTOP LOG"; cat ../dump/desktop-log.txt || true
+          echo "===== MOBILE LOG"; cat ../dump/mobile-log.txt || true
+      - name: Sonuclari site-dump dalina yaz
+        run: |
+          git config user.name "toggrobot-bot"
+          git config user.email "toggrobot-bot@users.noreply.github.com"
+          mv dump /tmp/dump
+          git checkout --orphan site-dump
+          git rm -rf . > /dev/null
+          cp -r /tmp/dump/. .
+          git add -A
+          git commit -m "Site dokumu ${{ github.run_number }}" > /dev/null
+          git push -f origin site-dump

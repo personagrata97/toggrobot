@@ -2,6 +2,9 @@ name: APK derle
 
 on:
   push:
+    paths-ignore:
+      - "tools/**"
+      - ".github/workflows/explore.yml"
   workflow_dispatch:
 
 permissions:
