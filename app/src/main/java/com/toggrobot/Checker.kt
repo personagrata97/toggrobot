@@ -162,11 +162,11 @@ object Scheduler {
     fun scheduleNext(ctx: Context, lastHttp: Int) {
         val s = Settings(ctx)
         if (!s.running) return
-        var delay = s.intervalMin * 60_000L
+        var delay = Night.delay(s, System.currentTimeMillis())
         // Site "cok sik geliyorsun" derse (429/403) veya sunucu hatasi varsa nazikce yavasla
         val fails = s.prefs.getInt("fails", 0)
         if (lastHttp == 429 || lastHttp == 403 || lastHttp >= 500 || lastHttp < 0) {
-            delay = (delay * (1L shl fails.coerceAtMost(4))).coerceAtMost(15 * 60_000L)
+            delay = (delay * (1L shl fails.coerceAtMost(4))).coerceAtMost(maxOf(15 * 60_000L, delay))
         }
         scheduleIn(ctx, delay)
     }
@@ -259,4 +259,38 @@ data class RobotStatus(val state: String, val count: Int, val best: Long, val ch
             return RobotStatus(o.optString("state"), o.optInt("count"), o.optLong("best"), o.optLong("cheapest"), o.optInt("sct"), o.optLong("time"))
         }
     }
+}
+
+/** Gece modu hesaplari. Gece seyrek kontrol eder, gece bitince tam zamaninda sik kontrole doner. */
+object Night {
+    private fun hourOf(t: Long) = java.util.Calendar.getInstance().apply { timeInMillis = t }.get(java.util.Calendar.HOUR_OF_DAY)
+
+    fun isNight(s: Settings, t: Long): Boolean {
+        if (!s.nightMode || s.nightStart == s.nightEnd) return false
+        val h = hourOf(t)
+        return if (s.nightStart < s.nightEnd) h in s.nightStart until s.nightEnd
+        else h >= s.nightStart || h < s.nightEnd // ör. 23 -> 7
+    }
+
+    /** Gecenin bitecegi an (bir sonraki nightEnd:00) */
+    private fun nightEndAfter(s: Settings, t: Long): Long {
+        val c = java.util.Calendar.getInstance().apply {
+            timeInMillis = t
+            set(java.util.Calendar.HOUR_OF_DAY, s.nightEnd)
+            set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 5); set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (c.timeInMillis <= t) c.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        return c.timeInMillis
+    }
+
+    /** Simdiki zamana gore bir sonraki kontrole kadar beklenecek sure */
+    fun delay(s: Settings, now: Long): Long {
+        if (!isNight(s, now)) return s.intervalMin * 60_000L
+        val nightStep = s.nightIntervalH * 3_600_000L
+        return minOf(nightStep, nightEndAfter(s, now) - now).coerceAtLeast(60_000L)
+    }
+
+    fun describe(s: Settings): String =
+        if (!s.nightMode) "Gece modu kapalı"
+        else "%02d:00–%02d:00 arası %d saatte bir".format(s.nightStart, s.nightEnd, s.nightIntervalH)
 }

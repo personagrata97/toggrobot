@@ -109,8 +109,26 @@ class Settings(ctx: Context) {
 
     /** Kontrol araligi (dakika) */
     var intervalMin: Int
-        get() = prefs.getInt("intervalMin", 1)
+        get() = prefs.getInt("intervalMin", 3)
         set(v) = prefs.edit().putInt("intervalMin", v.coerceIn(1, 60)).apply()
+
+    /** Gece modu: [nightStart, nightEnd) saatleri arasinda seyrek kontrol */
+    var nightMode: Boolean
+        get() = prefs.getBoolean("nightMode", true)
+        set(v) = prefs.edit().putBoolean("nightMode", v).apply()
+
+    var nightStart: Int
+        get() = prefs.getInt("nightStart", 0)
+        set(v) = prefs.edit().putInt("nightStart", v.coerceIn(0, 23)).apply()
+
+    var nightEnd: Int
+        get() = prefs.getInt("nightEnd", 9)
+        set(v) = prefs.edit().putInt("nightEnd", v.coerceIn(0, 23)).apply()
+
+    /** Gece kontrol araligi (saat) */
+    var nightIntervalH: Int
+        get() = prefs.getInt("nightIntervalH", 3)
+        set(v) = prefs.edit().putInt("nightIntervalH", v.coerceIn(1, 12)).apply()
 
     /** Kesin zamanlama: telefon derin uykudayken de tam zamaninda kontrol eder. */
     var exactMode: Boolean

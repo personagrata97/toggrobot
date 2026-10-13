@@ -97,7 +97,9 @@ class MainActivity : BaseActivity() {
         left.addView(statusRow)
         val last = s.prefs.getLong("lastCheck", 0)
         left.tv(
-            (if (running) "Her ${s.intervalMin} dakikada bir kontrol" else "Başlatmak için düğmeye dokun") +
+            (if (!running) "Başlatmak için düğmeye dokun"
+            else if (Night.isNight(s, System.currentTimeMillis())) "Gece modu: ${s.nightIntervalH} saatte bir kontrol"
+            else "Her ${s.intervalMin} dakikada bir kontrol" + (if (s.nightMode) "\nGece: ${Night.describe(s)}" else "")) +
                 (if (last > 0) "\nSon kontrol: ${Log.time(last)}" else ""),
             13f, Color.parseColor("#C7D2E0"), top = 4
         )

@@ -17,7 +17,7 @@ class SettingsActivity : BaseActivity() {
         content.section("Kontrol")
         val c1 = content.card()
         c1.tv("Kontrol sıklığı", 15f, bold = true)
-        val intervals = listOf(1, 2, 5, 10)
+        val intervals = listOf(1, 2, 3, 5, 10)
         c1.addView(
             segmented(intervals.map { "$it dk" }, intervals.indexOf(s.intervalMin).let { if (it < 0) 0 else it }) { i ->
                 s.intervalMin = intervals[i]
@@ -27,6 +27,19 @@ class SettingsActivity : BaseActivity() {
                 .apply { topMargin = dp(8) }
         )
         c1.tv("Her kontrol tek küçük bir istek. Telefon aradaki sürede uyur.", 12f, Palette.MUTED, top = 6)
+        c1.divider()
+        c1.switchRow("Gece modu", "Gece seyrek kontrol ederek pil ve internetten tasarruf eder.", s.nightMode) {
+            s.nightMode = it; if (s.running) Scheduler.scheduleIn(this, 2_000)
+        }
+        val nStart = c1.field("Gece başlangıcı (saat)", s.nightStart.toString(), numeric = true, suffix = ":00")
+        val nEnd = c1.field("Gece bitişi (saat)", s.nightEnd.toString(), numeric = true, suffix = ":00",
+            helper = "Bu saatte tam zamanında sık kontrole döner")
+        val nInt = c1.field("Gece kontrol aralığı", s.nightIntervalH.toString(), numeric = true, suffix = "saat")
+        saveNight = {
+            nStart.text.toString().toIntOrNull()?.let { s.nightStart = it }
+            nEnd.text.toString().toIntOrNull()?.let { s.nightEnd = it }
+            nInt.text.toString().toIntOrNull()?.let { s.nightIntervalH = it }
+        }
         c1.divider()
         c1.switchRow(
             "Kesin zamanlama",
@@ -101,10 +114,15 @@ class SettingsActivity : BaseActivity() {
     }
 
     private var saveOnPause: (() -> Unit)? = null
+    private var saveNight: (() -> Unit)? = null
 
     override fun onPause() {
         super.onPause()
         saveOnPause?.invoke()
+        val before = Settings(this).let { Triple(it.nightStart, it.nightEnd, it.nightIntervalH) }
+        saveNight?.invoke()
+        val s = Settings(this)
+        if (s.running && before != Triple(s.nightStart, s.nightEnd, s.nightIntervalH)) Scheduler.scheduleIn(this, 2_000)
     }
 
     private fun showLog() {
