@@ -1,28 +1,36 @@
 # Togg Robot 🚗
 
-Android uygulaması: `https://configurator.togg.com.tr/` sitesine her dakika girer,
-**T10F V2 RWD Uzun Menzil**'i seçmeye çalışır ve fiyata göre bildirim gönderir.
+Android uygulaması. Togg konfigüratörünün (`configurator.togg.com.tr`) **kendi veri servisini**
+düzenli aralıklarla okur. İstediğin konfigürasyon seçilebilir hale gelip fiyatı sınırının altına
+düşünce alarm sesiyle bildirim gönderir.
 
-## Ne yapar?
+## Nasıl çalışır?
 
-1. **Basit alarm:** Versiyon seçilebiliyorsa ve fiyatı **2.600.000 TL**'den düşükse bildirim.
-2. **Tam alarm:** Ardından süreci ilerletir, **Kış Paketi**, **Akıllı Destek Paketi**,
-   **Kula** dış renk, **Siyah vegan deri** koltuk ve **Panoramik cam tavan** seçer.
-   **Meridian ses sistemi** veya **çift renk** seçili görünürse ya da bir seçim fiyatı
-   kendi fiyatından fazla artırırsa (site zorla ekleme yaptıysa) tam alarm verilmez.
-   Hepsi hatasız seçilebildiyse ve son fiyat **2.500.000 TL**'den düşükse alarm sesiyle bildirim.
+Konfigüratör sayfası tüm verisini tek bir istekle çekiyor:
+`bff.dfs.togg.cloud/.../getSmartDeviceProducts/v1?collectionHandle=t10f-configurator`.
+Bu yanıtta her versiyonun seçenekleri (renk, koltuk, paketler, donanım) ve **gerçekten seçilebilen
+konfigürasyonlar** (anahtar teslim fiyat, ÖTV oranı, teslim ayı) bulunuyor. Uygulama sayfayı açıp
+butonlara tıklamıyor, sadece bu listeyi okuyor:
 
-Bot asla "Sipariş / Ödeme / Satın al / Rezervasyon" butonlarına basmaz.
+- Kontrol başına tek ve küçük bir istek (~50 KB, sıkıştırılmış hali daha da küçük). Resim, reklam ya da takip kodu indirmiyor.
+- İki kontrol arasında telefon tamamen uyuyabiliyor; alarm anında yaklaşık 1 saniyeliğine uyanıyor.
+- Arka planda sürekli çalışan bir servis ya da gizli tarayıcı yok.
+- Site 403/429 gibi "yavaşla" yanıtları verirse kontrol aralığı kendiliğinden uzar (en fazla 15 dk).
+
+## Robotlar
+
+Birden fazla robot tanımlanabilir (ör. biri sana, biri arkadaşına). Her robotta şunlar ayarlanır:
+
+- Model (T10F / T10X) ve versiyon (ör. *T10F V2 RWD Uzun Menzil*)
+- Her seçenek için kabul edilen değerler, sitenin gerçek listesinden işaretlenir:
+  - Renk: Kula veya Seyhan → ikisinden biri yeter
+  - Meridian: **Yok** → zorla seçili gelirse alarm çalmaz
+  - Siyah Renkte Tavan ve Yan Aynalar (çift renk): **Yok**
+- Anahtar teslim fiyat sınırı
+- İsteğe bağlı ek alarm: seçenekler tutmasa da versiyon belli bir fiyatın altına inerse haber verir
 
 ## Kurulum
 
-1. GitHub'da bu deponun **Releases** bölümünden en yeni `ToggRobot.apk`'yı telefondan indir.
-2. Kur (gerekirse "bilinmeyen kaynaklardan yüklemeye izin ver").
-3. Uygulamayı aç → bildirim iznini ver → **Pil kısıtlamasını kaldır** → **Şimdi test et** ile
-   botun siteyi doğru gezdiğini izle → **Başlat**.
-
-## Site değişirse
-
-Bot elemanları **yazılarına göre** bulur. Bir adım bulunamazsa uygulamadaki
-"Anahtar kelimeler" bölümünden kelimeleri düzeltebilirsin (virgül = VE, `/` = VEYA).
-"Sayfa metnini kopyala" ile çıktıyı alıp geliştiriciye gönderebilirsin.
+1. Bu deponun **Releases** bölümünden en yeni `ToggRobot.apk` dosyasını telefona indirip kur.
+2. Uygulamayı aç. İzin pencereleri sırayla kendiliğinden gelir (bildirim, pil); hepsine "İzin ver" de.
+3. Robot kendiliğinden çalışmaya başlar. "Sitede şu an seçilebilenler" bölümünde gerçek veriyi görebilirsin.

@@ -11,64 +11,82 @@ import android.media.RingtoneManager
 import android.net.Uri
 
 object Notifier {
-    const val CH_SERVICE = "service"
-    const val CH_ALERT = "alert_v1"
-    const val ID_SERVICE = 1
-    const val ID_FULL = 100
-    const val ID_BASIC = 101
-    const val ID_PROBLEM = 102
+    private const val CH_STATUS = "status"
+    private const val CH_ALERT = "alert_v2"
+    private const val CH_INFO = "info"
+    private const val ID_STATUS = 1
+    const val ID_PROBLEM = 2
 
     fun createChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CH_SERVICE, "Arka plan kontrol", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CH_STATUS, "Durum (sessiz)", NotificationManager.IMPORTANCE_MIN).apply { setShowBadge(false) }
         )
-        val alert = NotificationChannel(CH_ALERT, "TOGG fiyat alarmi", NotificationManager.IMPORTANCE_HIGH).apply {
-            enableVibration(true)
-            vibrationPattern = longArrayOf(0, 500, 250, 500, 250, 800)
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
-            )
-        }
-        nm.createNotificationChannel(alert)
+        nm.createNotificationChannel(NotificationChannel(CH_INFO, "Bilgi", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(
+            NotificationChannel(CH_ALERT, "TOGG fiyat alarmı", NotificationManager.IMPORTANCE_HIGH).apply {
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 600, 250, 600, 250, 900)
+                setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                )
+            }
+        )
     }
 
-    fun serviceNotification(ctx: Context, text: String): Notification {
-        val open = PendingIntent.getActivity(
-            ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
-        val stop = PendingIntent.getService(
-            ctx, 1, Intent(ctx, CheckerService::class.java).setAction(CheckerService.ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        return Notification.Builder(ctx, CH_SERVICE)
-            .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Togg Robot calisiyor")
-            .setContentText(text)
-            .setStyle(Notification.BigTextStyle().bigText(text))
-            .setOngoing(true)
-            .setContentIntent(open)
-            .addAction(Notification.Action.Builder(null, "Durdur", stop).build())
-            .build()
-    }
+    /** Robot id + tur icin sabit bildirim numarasi (her robotun bildirimi ayri durur). */
+    fun idFor(robotId: String, kind: String) = 1000 + ((robotId + kind).hashCode() and 0xFFFFF)
 
-    fun alert(ctx: Context, id: Int, title: String, text: String, url: String) {
-        val view = PendingIntent.getActivity(
-            ctx, id, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_IMMUTABLE
-        )
+    private fun openSite(ctx: Context, id: Int) = PendingIntent.getActivity(
+        ctx, id, Intent(Intent.ACTION_VIEW, Uri.parse(Api.SITE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_IMMUTABLE
+    )
+
+    fun alert(ctx: Context, id: Int, title: String, text: String, @Suppress("UNUSED_PARAMETER") url: String) {
         val n = Notification.Builder(ctx, CH_ALERT)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText(text.lineSequence().firstOrNull() ?: text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setCategory(Notification.CATEGORY_ALARM)
             .setAutoCancel(true)
-            .setContentIntent(view)
+            .setContentIntent(openSite(ctx, id))
             .build()
         ctx.getSystemService(NotificationManager::class.java).notify(id, n)
+    }
+
+    fun info(ctx: Context, id: Int, title: String, text: String) {
+        val n = Notification.Builder(ctx, CH_INFO)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setContentIntent(openSite(ctx, id))
+            .build()
+        ctx.getSystemService(NotificationManager::class.java).notify(id, n)
+    }
+
+    /** Sessiz, kucuk durum bildirimi: son kontrol zamani ve ozet. */
+    fun status(ctx: Context, summary: String) {
+        if (!Settings(ctx).running) return
+        val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val n = Notification.Builder(ctx, CH_STATUS)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle("Togg Robot • son kontrol ${Log.time().substringAfter(' ').substring(0, 5)}")
+            .setContentText(summary.lineSequence().firstOrNull() ?: "")
+            .setStyle(Notification.BigTextStyle().bigText(summary))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .setContentIntent(open)
+            .build()
+        ctx.getSystemService(NotificationManager::class.java).notify(ID_STATUS, n)
+    }
+
+    fun cancelStatus(ctx: Context) {
+        ctx.getSystemService(NotificationManager::class.java).cancel(ID_STATUS)
     }
 }
