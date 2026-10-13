@@ -177,7 +177,9 @@
   // ---------- Fiyat ----------
   var PRICE_RE = /(₺\s*\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?|\d{1,3}(?:[.\s]\d{3})+(?:,\d{1,2})?\s*(?:TL|₺|TRY))/gi;
 
-  function parsePrices(text) {
+  function parsePrices(text) { return parseAmounts(text, 300000, 20000000); }
+
+  function parseAmounts(text, min, max) {
     var out = [];
     var m;
     PRICE_RE.lastIndex = 0;
@@ -185,7 +187,7 @@
       var s = m[0].replace(/₺|TL|TRY/gi, '').trim();
       s = s.split(',')[0].replace(/[.\s]/g, '');
       var v = parseInt(s, 10);
-      if (v >= 300000 && v <= 20000000) out.push(v);
+      if (v >= min && v <= max) out.push(v);
     }
     return out;
   }
@@ -239,6 +241,19 @@
       var uniq = ps.filter(function (v, k) { return ps.indexOf(v) === k; });
       if (uniq.length === 1) return uniq[0];
       if (uniq.length > 1) return null;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  function optionPrice(el) {
+    var cur = el;
+    for (var i = 0; i < 3 && cur && cur !== document.body; i++) {
+      var t = cur.textContent || '';
+      if (t.length > 300) break;
+      var ps = parseAmounts(t, 1000, 1500000);
+      if (ps.length === 1) return ps[0];
+      if (ps.length > 1) return null;
       cur = cur.parentElement;
     }
     return null;
@@ -328,7 +343,7 @@
   async function run(cfg) {
     var st = loadState();
     if (!st || st.runId !== cfg.runId) {
-      st = { runId: cfg.runId, done: {}, blocked: {}, log: [], errors: [], prices: {}, steps: 0, stalls: 0, tabsTried: {} };
+      st = { runId: cfg.runId, done: {}, blocked: {}, violations: [], log: [], errors: [], prices: {}, steps: 0, stalls: 0, tabsTried: {} };
     }
     var t0 = Date.now();
     var deadline = t0 + (cfg.timeoutMs || 60000);
@@ -348,6 +363,29 @@
 
     function variantDone() { return !!st.done.variant; }
 
+    var forbids = targets.filter(function (t) { return t.kind === 'forbid'; });
+    function addViolation(v) {
+      if (st.violations.indexOf(v) === -1) { st.violations.push(v); L('ISTENMEYEN SECIM: ' + v); }
+    }
+    // Meridian / cift renk gibi istenmeyenler secili mi?
+    function checkForbidden() {
+      forbids.forEach(function (f) {
+        var ms = findDeepestMatches(f.groups, 200);
+        for (var k = 0; k < ms.length; k++) {
+          var ce = clickableAncestor(ms[k]);
+          if (isSelected(ce) || isSelected(ms[k])) { addViolation(f.label + ' secili gorunuyor'); return; }
+        }
+        // "X ile birlikte Y eklenecek" gibi bir pencere acildi mi?
+        var dlg = document.querySelectorAll('[role=dialog],[role=alertdialog],.modal,[class*="modal"],[class*="Modal"],[class*="popup"]');
+        for (var d = 0; d < dlg.length; d++) {
+          if (isVisible(dlg[d]) && textMatches(fold(dlg[d].textContent), f.groups)) {
+            addViolation(f.label + ' icin uyari penceresi: ' + fold(dlg[d].textContent).slice(0, 120));
+            return;
+          }
+        }
+      });
+    }
+
     while (Date.now() < deadline && st.steps < (cfg.maxSteps || 40)) {
       st.steps++;
       var errs = findErrors();
@@ -356,6 +394,7 @@
       var clickedSomething = false;
       for (var i = 0; i < targets.length; i++) {
         var tg = targets[i];
+        if (tg.kind === 'forbid') continue;
         if (st.done[tg.id] || st.blocked[tg.id]) continue;
         if (!cfg.fullMode && tg.kind === 'extra') continue;
         if (tg.kind === 'extra' && !variantDone()) continue;
@@ -397,6 +436,18 @@
           await sleep(stepDelay);
           after = readTotal();
         }
+        if (tg.kind === 'extra') {
+          // Fiyat, secenegin kendi fiyatindan fazla arttiysa site zorla baska bir sey eklemis olabilir
+          var op = optionPrice(clickEl);
+          if (before && after) {
+            var delta = after.v - before.v;
+            L(tg.label + ': fiyat ' + before.v + ' -> ' + after.v + ' (+' + delta + ', secenek fiyati: ' + (op === null ? '?' : op) + ')');
+            if (op !== null && delta > op + 2000) {
+              addViolation(tg.label + ' secince fiyat beklenenden fazla artti (+' + delta + ' / secenek ' + op + '): zorunlu ek secim olabilir');
+            }
+          }
+          checkForbidden();
+        }
         if (tg.kind === 'variant') {
           var cardPrice = priceInside(el) || priceInside(clickEl);
           st.prices.variantCard = cardPrice;
@@ -416,7 +467,7 @@
       if (st.blocked.variant) break;
 
       var pending = targets.filter(function (t) {
-        return !st.done[t.id] && !st.blocked[t.id] && (cfg.fullMode || t.kind !== 'extra') && !t.optional;
+        return t.kind !== 'forbid' && !st.done[t.id] && !st.blocked[t.id] && (cfg.fullMode || t.kind !== 'extra') && !t.optional;
       });
       if (!pending.length) { L('Tum hedefler secildi'); break; }
 
@@ -444,9 +495,10 @@
       saveState(st);
     }
 
+    if (cfg.fullMode && variantDone()) checkForbidden();
     var total = readTotal();
     var missing = targets.filter(function (t) {
-      return !t.optional && (cfg.fullMode || t.kind !== 'extra') && !st.done[t.id];
+      return !t.optional && t.kind !== 'forbid' && (cfg.fullMode || t.kind !== 'extra') && !st.done[t.id];
     }).map(function (t) { return t.label + (st.blocked[t.id] ? ' (secilemez)' : ' (bulunamadi)'); });
     var result = {
       runId: cfg.runId,
@@ -459,12 +511,13 @@
       done: Object.keys(st.done),
       missing: missing,
       errors: st.errors,
+      violations: st.violations,
       steps: st.steps,
       log: st.log,
       allPrices: parsePrices(document.body ? document.body.innerText : '').slice(0, 30),
       pageText: cfg.debug ? (document.body ? document.body.innerText.slice(0, 30000) : '') : ''
     };
-    result.fullOk = cfg.fullMode && result.variantSelectable && missing.length === 0 && st.errors.length === 0;
+    result.fullOk = cfg.fullMode && result.variantSelectable && missing.length === 0 && st.errors.length === 0 && st.violations.length === 0;
     try { sessionStorage.removeItem(STATE_KEY); } catch (e) {}
     return result;
   }

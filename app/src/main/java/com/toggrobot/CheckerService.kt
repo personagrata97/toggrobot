@@ -172,7 +172,7 @@ object Evaluator {
             val vPrice = res.optLong("variantPrice", 0)
             val fPrice = res.optLong("finalPrice", 0)
             val fullOk = res.optBoolean("fullOk")
-            val basicHit = sel && vPrice in 1L until cfg.basicThreshold.toLong()
+            val basicHit = cfg.basicAlarm && sel && vPrice in 1L until cfg.basicThreshold.toLong()
             val fullHit = fullOk && fPrice in 1L until cfg.fullThreshold.toLong()
 
             val parts = mutableListOf<String>()
@@ -183,7 +183,8 @@ object Evaluator {
             }
             if (cfg.fullMode && sel) {
                 val missing = res.optJSONArray("missing")?.join(", ") ?: ""
-                val errors = res.optJSONArray("errors")?.join(" | ") ?: ""
+                val errors = listOf(res.optJSONArray("errors")?.join(" | ") ?: "", res.optJSONArray("violations")?.join(" | ") ?: "")
+                    .filter { it.isNotEmpty() }.joinToString(" | ")
                 val priceText = if (fPrice > 0) fmt(fPrice) else "fiyat yok"
                 parts += if (fullOk) "Tam konfig: $priceText"
                 else "Tam konfig olmadi ($missing${if (errors.isNotEmpty()) " hata: $errors" else ""}) son fiyat: $priceText"
@@ -193,7 +194,7 @@ object Evaluator {
             if (notify) {
                 maybeAlert(ctx, cfg, "lastFull", fullHit, now, Notifier.ID_FULL,
                     "🎉 TOGG: Istedigin konfigurasyon ${fmt(fPrice)}!",
-                    "T10F V2 RWD Uzun Menzil + Kis + Akilli Destek + Kula + Siyah vegan deri + Panoramik tavan secilebiliyor. Son fiyat ${fmt(fPrice)} (< ${fmt(cfg.fullThreshold.toLong())}). Dokun: siteyi ac.")
+                    "T10F V2 RWD Uzun Menzil + Kis + Akilli Destek + Kula + Siyah vegan deri + Panoramik tavan secilebiliyor (Meridian / cift renk yok). Son fiyat ${fmt(fPrice)} (< ${fmt(cfg.fullThreshold.toLong())}). Dokun: siteyi ac.")
                 maybeAlert(ctx, cfg, "lastBasic", basicHit && !fullHit, now, Notifier.ID_BASIC,
                     "🚗 TOGG T10F V2 RWD Uzun Menzil: ${fmt(vPrice)}",
                     "Versiyon secilebiliyor ve fiyat ${fmt(vPrice)} (< ${fmt(cfg.basicThreshold.toLong())}). Dokun: siteyi ac.")

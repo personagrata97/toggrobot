@@ -8,6 +8,8 @@ Android uygulaması: `https://configurator.togg.com.tr/` sitesine her dakika gir
 1. **Basit alarm:** Versiyon seçilebiliyorsa ve fiyatı **2.600.000 TL**'den düşükse bildirim.
 2. **Tam alarm:** Ardından süreci ilerletir, **Kış Paketi**, **Akıllı Destek Paketi**,
    **Kula** dış renk, **Siyah vegan deri** koltuk ve **Panoramik cam tavan** seçer.
+   **Meridian ses sistemi** veya **çift renk** seçili görünürse ya da bir seçim fiyatı
+   kendi fiyatından fazla artırırsa (site zorla ekleme yaptıysa) tam alarm verilmez.
    Hepsi hatasız seçilebildiyse ve son fiyat **2.500.000 TL**'den düşükse alarm sesiyle bildirim.
 
 Bot asla "Sipariş / Ödeme / Satın al / Rezervasyon" butonlarına basmaz.

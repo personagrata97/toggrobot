@@ -14,6 +14,7 @@ class Config(context: Context) {
     var basicThreshold by IntPref("basicThreshold", 2_600_000)
     var fullThreshold by IntPref("fullThreshold", 2_500_000)
     var fullMode by BoolPref("fullMode", true)
+    var basicAlarm by BoolPref("basicAlarm", true)
     var desktopMode by BoolPref("desktopMode", false)
     var blockImages by BoolPref("blockImages", true)
     var overlayMode by BoolPref("overlayMode", false)
@@ -27,6 +28,8 @@ class Config(context: Context) {
     var kwRenk by StrPref("kwRenk", "kula")
     var kwKoltuk by StrPref("kwKoltuk", "siyah, vegan")
     var kwTavan by StrPref("kwTavan", "panoramik/cam tavan")
+    var kwMeridian by StrPref("kwMeridian", "meridian")
+    var kwCiftRenk by StrPref("kwCiftRenk", "cift renk/iki renk/cift tonlu/bi-ton/bitone")
     var nextWords by StrPref("nextWords", "devam/ileri/sonraki/next/continue")
     var tabWords by StrPref("tabWords", "paket,dis renk,renk,ic mekan,koltuk,donanim,opsiyon")
 
@@ -48,6 +51,9 @@ class Config(context: Context) {
         t("renk", "Dis renk (Kula)", "extra", kwRenk)
         t("koltuk", "Koltuk (Siyah vegan deri)", "extra", kwKoltuk)
         t("tavan", "Panoramik cam tavan", "extra", kwTavan, toggle = true)
+        // Bunlar ASLA secilmemeli; secili gorunurse tam alarm verilmez
+        t("meridian", "Meridian ses sistemi", "forbid", kwMeridian)
+        t("ciftrenk", "Cift renk", "forbid", kwCiftRenk)
         return JSONObject()
             .put("runId", runId)
             .put("fullMode", fullMode)

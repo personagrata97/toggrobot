@@ -134,6 +134,7 @@ class MainActivity : Activity() {
 
         header("Hedefler ve eşikler")
         intField(root, "Kontrol aralığı (saniye)", { cfg.intervalSec }) { cfg.intervalSec = it.coerceAtLeast(30) }
+        checkField(root, "Basit alarm (sadece versiyon + fiyat) açık", { cfg.basicAlarm }) { cfg.basicAlarm = it }
         intField(root, "Basit alarm: versiyon fiyatı şundan düşükse (TL)", { cfg.basicThreshold }) { cfg.basicThreshold = it }
         intField(root, "Tam alarm: son fiyat şundan düşükse (TL)", { cfg.fullThreshold }) { cfg.fullThreshold = it }
         intField(root, "Alarm tekrar aralığı (dakika)", { cfg.repeatMin }) { cfg.repeatMin = it.coerceAtLeast(1) }
@@ -151,6 +152,8 @@ class MainActivity : Activity() {
         textField(root, "Dış renk", { cfg.kwRenk }) { cfg.kwRenk = it }
         textField(root, "Koltuk", { cfg.kwKoltuk }) { cfg.kwKoltuk = it }
         textField(root, "Donanım (tavan)", { cfg.kwTavan }) { cfg.kwTavan = it }
+        textField(root, "İSTENMEYEN: Meridian (seçili olursa alarm yok)", { cfg.kwMeridian }) { cfg.kwMeridian = it }
+        textField(root, "İSTENMEYEN: Çift renk (seçili olursa alarm yok)", { cfg.kwCiftRenk }) { cfg.kwCiftRenk = it }
         textField(root, "İleri butonu kelimeleri", { cfg.nextWords }) { cfg.nextWords = it }
         textField(root, "Adım sekmeleri (yedek)", { cfg.tabWords }) { cfg.tabWords = it }
 
@@ -226,6 +229,7 @@ class MainActivity : Activity() {
             val summary = Evaluator.handle(this, cfg, res, notify = false)
             val sb = StringBuilder()
             sb.append("\n\n=== SONUÇ ===\n").append(summary)
+            res.optJSONArray("violations")?.takeIf { it.length() > 0 }?.let { sb.append("\nİstenmeyen: ").append(it.toString()) }
             sb.append("\nSeçilenler: ").append(res.optJSONArray("done")?.toString() ?: "-")
             sb.append("\nSayfadaki fiyatlar: ").append(res.optJSONArray("allPrices")?.toString() ?: "-")
             res.optString("finalPriceText").takeIf { it.isNotEmpty() }?.let { sb.append("\nToplam okunan yer: ").append(it) }
